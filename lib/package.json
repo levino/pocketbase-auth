@@ -38,6 +38,7 @@
 	"homepage": "https://github.com/levino/pocketbase-auth#readme",
 	"dependencies": {
 		"cookie-parser": "^1.4.7",
+		"effect": "^3.19.15",
 		"express": "^4.21.2",
 		"pocketbase": "^0.26"
 	},

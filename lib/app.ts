@@ -1,5 +1,6 @@
 import path from "node:path";
 import cookieParser from "cookie-parser";
+import { Effect, Exit } from "effect";
 import express, {
 	type NextFunction,
 	type Request,
@@ -8,9 +9,11 @@ import express, {
 import {
 	generateLoginPageHtml,
 	generateNotAMemberPageHtml,
+	getUserForErrorPage,
 	handleCookieRequest,
 	handleLogoutRequest,
 	type PocketBaseAuthOptions,
+	requestErrorToResponse,
 	verifyAuth,
 } from "./index.ts";
 
@@ -85,11 +88,20 @@ export function createApp() {
 		.use("/api", express.json())
 		.post("/api/cookie", async (req: Request, res: Response) => {
 			const webRequest = toWebRequest(req);
-			const webResponse = await handleCookieRequest(
-				webRequest,
-				options.pocketbaseUrl,
+			const exit = await Effect.runPromiseExit(
+				handleCookieRequest(webRequest, options.pocketbaseUrl),
 			);
-			await sendWebResponse(webResponse, res);
+
+			if (Exit.isSuccess(exit)) {
+				await sendWebResponse(exit.value, res);
+			} else {
+				const cause = exit.cause;
+				if (cause._tag === "Fail" && cause.error._tag === "RequestError") {
+					await sendWebResponse(requestErrorToResponse(cause.error), res);
+				} else {
+					res.status(500).json({ error: "Unknown error" });
+				}
+			}
 		})
 		.post("/api/logout", async (_req: Request, res: Response) => {
 			const webResponse = handleLogoutRequest("/");
@@ -97,32 +109,64 @@ export function createApp() {
 		})
 		.use(async (req: Request, res: Response, next: NextFunction) => {
 			const webRequest = toWebRequest(req);
-			const result = await verifyAuth(webRequest, options);
+			const exit = await Effect.runPromiseExit(verifyAuth(webRequest, options));
 
-			if (!result.isAuthenticated) {
-				return res
-					.status(401)
-					.send(
-						generateLoginPageHtml(
-							options.pocketbaseUrl,
-							options.pocketbaseUrlMicrosoft,
-						),
-					);
+			if (Exit.isSuccess(exit)) {
+				// User is authenticated and authorized
+				return next();
 			}
 
-			if (!result.isAuthorized && result.user) {
-				return res
-					.status(403)
-					.send(
-						generateNotAMemberPageHtml(
-							result.user.email,
-							options.groupField,
-							options.pocketbaseUrl,
-						),
-					);
+			// Handle auth errors
+			const cause = exit.cause;
+			if (cause._tag === "Fail" && cause.error._tag === "AuthError") {
+				const error = cause.error;
+
+				switch (error.reason) {
+					case "NoCookie":
+					case "InvalidCookie":
+					case "AuthRefreshFailed":
+					case "NoUserRecord":
+						return res
+							.status(401)
+							.send(
+								generateLoginPageHtml(
+									options.pocketbaseUrl,
+									options.pocketbaseUrlMicrosoft,
+								),
+							);
+
+					case "NotInRequiredGroup":
+					case "GroupCheckFailed": {
+						// Try to get user email for better error message
+						// Use the shared Effect-based helper from index.ts
+						const userExit = await Effect.runPromiseExit(
+							getUserForErrorPage(webRequest, options),
+						);
+						const userEmail = Exit.isSuccess(userExit)
+							? userExit.value.email
+							: "unknown";
+						return res
+							.status(403)
+							.send(
+								generateNotAMemberPageHtml(
+									userEmail,
+									options.groupField,
+									options.pocketbaseUrl,
+								),
+							);
+					}
+				}
 			}
 
-			return next();
+			// Unknown error - show login page
+			return res
+				.status(401)
+				.send(
+					generateLoginPageHtml(
+						options.pocketbaseUrl,
+						options.pocketbaseUrlMicrosoft,
+					),
+				);
 		})
 		.use(express.static(path.join(__dirname, "/build")));
 }

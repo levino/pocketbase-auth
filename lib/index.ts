@@ -1,4 +1,7 @@
+import { Data, Effect, pipe } from "effect";
 import PocketBase from "pocketbase";
+
+// --- Configuration ---
 
 /**
  * Configuration options for the PocketBase auth middleware
@@ -12,14 +15,44 @@ export interface PocketBaseAuthOptions {
 	groupField: string;
 }
 
-/**
- * Result of authentication verification
- */
+// --- Typed Errors (Railway Oriented Programming) ---
+
+/** Base class for all auth errors */
+export class AuthError extends Data.TaggedError("AuthError")<{
+	readonly reason:
+		| "NoCookie"
+		| "InvalidCookie"
+		| "AuthRefreshFailed"
+		| "NoUserRecord"
+		| "NotInRequiredGroup"
+		| "GroupCheckFailed";
+	readonly message: string;
+	readonly cause?: unknown;
+}> {}
+
+/** Error for missing configuration */
+export class ConfigurationError extends Data.TaggedError("ConfigurationError")<{
+	readonly field: string;
+	readonly message: string;
+}> {}
+
+/** Error for invalid HTTP requests */
+export class RequestError extends Data.TaggedError("RequestError")<{
+	readonly reason: "MethodNotAllowed" | "InvalidJson" | "MissingToken";
+	readonly message: string;
+	readonly statusCode: number;
+}> {}
+
+// --- Success Types ---
+
+export interface AuthenticatedUser {
+	id: string;
+	email: string;
+}
+
 export interface AuthResult {
-	isAuthenticated: boolean;
-	isAuthorized: boolean;
-	user?: { id: string; email: string };
-	error?: string;
+	user: AuthenticatedUser;
+	pb: PocketBase;
 }
 
 // --- Utility functions ---
@@ -238,187 +271,377 @@ export function generateNotAMemberPageHtml(
 </html>`;
 }
 
-// --- Core Auth Functions ---
+// --- Core Auth Functions (Effect-based) ---
+
+/**
+ * Extract and validate cookie from request
+ */
+const extractCookie = (request: Request) =>
+	Effect.gen(function* () {
+		const cookie = request.headers.get("Cookie");
+		if (!cookie) {
+			return yield* new AuthError({
+				reason: "NoCookie",
+				message: "No authentication cookie present",
+			});
+		}
+		return cookie;
+	});
+
+/**
+ * Load and validate auth store from cookie
+ */
+const loadAuthStore = (pb: PocketBase, cookie: string) =>
+	Effect.gen(function* () {
+		pb.authStore.loadFromCookie(cookie);
+		if (!pb.authStore.isValid) {
+			return yield* new AuthError({
+				reason: "InvalidCookie",
+				message: "Authentication cookie is invalid or expired",
+			});
+		}
+		return pb;
+	});
+
+/**
+ * Refresh authentication with PocketBase
+ */
+const refreshAuth = (pb: PocketBase) =>
+	Effect.tryPromise({
+		try: () => pb.collection("users").authRefresh(),
+		catch: (error) =>
+			new AuthError({
+				reason: "AuthRefreshFailed",
+				message: "Failed to refresh authentication with PocketBase",
+				cause: error,
+			}),
+	}).pipe(Effect.map(() => pb));
+
+/**
+ * Extract user record from auth store
+ */
+const extractUserRecord = (pb: PocketBase) =>
+	Effect.gen(function* () {
+		const user = pb.authStore.record;
+		if (!user) {
+			return yield* new AuthError({
+				reason: "NoUserRecord",
+				message: "No user record found in auth store",
+			});
+		}
+		return { user: { id: user.id, email: user.email }, pb };
+	});
+
+/**
+ * Check if user belongs to required group
+ */
+const checkGroupMembership = (
+	pb: PocketBase,
+	user: AuthenticatedUser,
+	groupField: string,
+) =>
+	pipe(
+		Effect.tryPromise({
+			try: () =>
+				pb.collection("groups").getFirstListItem(`user_id="${user.id}"`),
+			catch: (error) =>
+				new AuthError({
+					reason: "GroupCheckFailed",
+					message: "Failed to check group membership",
+					cause: error,
+				}),
+		}),
+		Effect.flatMap((groups) => {
+			if (groups[groupField]) {
+				return Effect.succeed({ user, pb });
+			}
+			return Effect.fail(
+				new AuthError({
+					reason: "NotInRequiredGroup",
+					message: `User is not a member of the required group (${groupField})`,
+				}),
+			);
+		}),
+	);
 
 /**
  * Verify authentication from a request
+ *
+ * Returns Effect<AuthResult, AuthError> - success with user info, or typed error
  */
-export async function verifyAuth(
+export const verifyAuth = (
 	request: Request,
 	options: PocketBaseAuthOptions,
-): Promise<AuthResult> {
+): Effect.Effect<AuthResult, AuthError> => {
 	const { pocketbaseUrl, groupField } = options;
-	const pb = new PocketBase(pocketbaseUrl);
-	const cookie = request.headers.get("Cookie");
 
-	if (!cookie) {
-		return { isAuthenticated: false, isAuthorized: false, error: "No cookie" };
-	}
+	return Effect.gen(function* () {
+		const pb = new PocketBase(pocketbaseUrl);
 
-	pb.authStore.loadFromCookie(cookie);
+		// Railway: each step can fail with AuthError
+		const cookie = yield* extractCookie(request);
+		yield* loadAuthStore(pb, cookie);
+		yield* refreshAuth(pb);
+		const { user } = yield* extractUserRecord(pb);
+		return yield* checkGroupMembership(pb, user, groupField);
+	});
+};
 
-	if (!pb.authStore.isValid) {
-		return {
-			isAuthenticated: false,
-			isAuthorized: false,
-			error: "Invalid cookie",
-		};
-	}
+/**
+ * Parse JSON body from request
+ */
+const parseJsonBody = (request: Request) =>
+	Effect.tryPromise({
+		try: () => request.json() as Promise<{ token?: string }>,
+		catch: () =>
+			new RequestError({
+				reason: "InvalidJson",
+				message: "Request body is not valid JSON",
+				statusCode: 400,
+			}),
+	});
 
-	try {
-		await pb.collection("users").authRefresh();
-	} catch {
-		return {
-			isAuthenticated: false,
-			isAuthorized: false,
-			error: "Auth refresh failed",
-		};
-	}
-
-	const user = pb.authStore.record;
-	if (!user) {
-		return {
-			isAuthenticated: false,
-			isAuthorized: false,
-			error: "No user record",
-		};
-	}
-
-	try {
-		const groups = await pb
-			.collection("groups")
-			.getFirstListItem(`user_id="${user.id}"`);
-
-		if (groups[groupField]) {
-			return {
-				isAuthenticated: true,
-				isAuthorized: true,
-				user: { id: user.id, email: user.email },
-			};
+/**
+ * Extract token from parsed body
+ */
+const extractToken = (body: { token?: string }) =>
+	Effect.gen(function* () {
+		if (!body.token) {
+			return yield* new RequestError({
+				reason: "MissingToken",
+				message: "Token is required in request body",
+				statusCode: 400,
+			});
 		}
-
-		return {
-			isAuthenticated: true,
-			isAuthorized: false,
-			user: { id: user.id, email: user.email },
-			error: "Not in required group",
-		};
-	} catch {
-		return {
-			isAuthenticated: true,
-			isAuthorized: false,
-			user: { id: user.id, email: user.email },
-			error: "Group check failed",
-		};
-	}
-}
+		return body.token;
+	});
 
 /**
  * Handle POST /api/cookie - converts OAuth token to HTTP-only cookie
+ *
+ * Returns Effect<Response, RequestError>
  */
-export async function handleCookieRequest(
+export const handleCookieRequest = (
 	request: Request,
 	pocketbaseUrl: string,
-): Promise<Response> {
-	if (request.method !== "POST") {
-		return jsonResponse({ error: "Method not allowed" }, 405);
-	}
+): Effect.Effect<Response, RequestError> =>
+	Effect.gen(function* () {
+		// Validate method
+		if (request.method !== "POST") {
+			return yield* new RequestError({
+				reason: "MethodNotAllowed",
+				message: "Only POST method is allowed",
+				statusCode: 405,
+			});
+		}
 
-	let body: { token?: string };
-	try {
-		body = (await request.json()) as { token?: string };
-	} catch {
-		return jsonResponse({ error: "Invalid JSON" }, 400);
-	}
+		const body = yield* parseJsonBody(request);
+		const token = yield* extractToken(body);
 
-	const { token } = body;
-	if (!token) {
-		return jsonResponse({ error: "Token required" }, 400);
-	}
+		const pb = new PocketBase(pocketbaseUrl);
+		pb.authStore.save(token);
+		const authCookie = pb.authStore.exportToCookie({ sameSite: "None" });
 
-	const pb = new PocketBase(pocketbaseUrl);
-	pb.authStore.save(token);
-	const authCookie = pb.authStore.exportToCookie({ sameSite: "None" });
-
-	return jsonResponse({ success: true }, 200, { "Set-Cookie": authCookie });
-}
+		return jsonResponse({ success: true }, 200, { "Set-Cookie": authCookie });
+	});
 
 /**
  * Handle POST /api/logout - clears cookie and redirects
  */
-export function handleLogoutRequest(redirectUrl = "/"): Response {
-	return redirectResponse(redirectUrl, {
+export const handleLogoutRequest = (redirectUrl = "/"): Response =>
+	redirectResponse(redirectUrl, {
 		"Set-Cookie":
 			"pb_auth=; Path=/; HttpOnly; SameSite=None; Secure; Expires=Thu, 01 Jan 1970 00:00:00 GMT",
 	});
-}
+
+/**
+ * Validate configuration options
+ */
+const validateConfig = (options: PocketBaseAuthOptions) =>
+	Effect.gen(function* () {
+		if (!options.pocketbaseUrl) {
+			return yield* new ConfigurationError({
+				field: "pocketbaseUrl",
+				message: "POCKETBASE_URL environment variable is not set",
+			});
+		}
+		if (!options.groupField) {
+			return yield* new ConfigurationError({
+				field: "groupField",
+				message: "POCKETBASE_GROUP environment variable is not set",
+			});
+		}
+		return options;
+	});
+
+/**
+ * Convert AuthError to appropriate HTTP Response
+ */
+export const authErrorToResponse = (
+	error: AuthError,
+	options: PocketBaseAuthOptions,
+): Response => {
+	const { pocketbaseUrl, pocketbaseUrlMicrosoft, groupField } = options;
+
+	switch (error.reason) {
+		case "NoCookie":
+		case "InvalidCookie":
+		case "AuthRefreshFailed":
+		case "NoUserRecord":
+			return htmlResponse(
+				generateLoginPageHtml(pocketbaseUrl, pocketbaseUrlMicrosoft),
+				401,
+			);
+
+		case "NotInRequiredGroup":
+		case "GroupCheckFailed":
+			// For these errors we need user info - but we might not have it
+			// This is a limitation - we'll show a generic message
+			return htmlResponse(
+				generateNotAMemberPageHtml("unknown", groupField, pocketbaseUrl),
+				403,
+			);
+	}
+};
+
+/**
+ * Convert RequestError to HTTP Response
+ */
+export const requestErrorToResponse = (error: RequestError): Response =>
+	jsonResponse({ error: error.message }, error.statusCode);
+
+/**
+ * Convert ConfigurationError to HTTP Response
+ */
+export const configErrorToResponse = (error: ConfigurationError): Response =>
+	htmlResponse(
+		`<h1>Configuration Error</h1><p>${escapeHtml(error.message)}</p>`,
+		500,
+	);
 
 /**
  * Create auth middleware for edge runtimes (Cloudflare Pages, etc.)
  *
  * Returns null if authenticated and authorized, otherwise returns a Response
  */
-export function createAuthMiddleware(options: PocketBaseAuthOptions) {
+export const createAuthMiddleware = (options: PocketBaseAuthOptions) => {
 	const { pocketbaseUrl, pocketbaseUrlMicrosoft, groupField } = options;
 
 	return async (request: Request): Promise<Response | null> => {
-		const result = await verifyAuth(request, options);
-
-		if (!result.isAuthenticated) {
-			return htmlResponse(
-				generateLoginPageHtml(pocketbaseUrl, pocketbaseUrlMicrosoft),
-				401,
-			);
-		}
-
-		if (!result.isAuthorized && result.user) {
-			return htmlResponse(
-				generateNotAMemberPageHtml(
-					result.user.email,
-					groupField,
-					pocketbaseUrl,
-				),
-				403,
-			);
-		}
-
-		return null; // Proceed with request
+		const result = await Effect.runPromise(
+			pipe(
+				verifyAuth(request, options),
+				Effect.map(() => null as Response | null),
+				Effect.catchTag("AuthError", (error) => {
+					// For NotInRequiredGroup/GroupCheckFailed, we need to get user info
+					// Run a partial auth to get user email for the error page
+					if (
+						error.reason === "NotInRequiredGroup" ||
+						error.reason === "GroupCheckFailed"
+					) {
+						return pipe(
+							getUserForErrorPage(request, options),
+							Effect.map((user) =>
+								htmlResponse(
+									generateNotAMemberPageHtml(
+										user.email,
+										groupField,
+										pocketbaseUrl,
+									),
+									403,
+								),
+							),
+							Effect.catchAll(() =>
+								Effect.succeed(
+									htmlResponse(
+										generateNotAMemberPageHtml(
+											"unknown",
+											groupField,
+											pocketbaseUrl,
+										),
+										403,
+									),
+								),
+							),
+						);
+					}
+					return Effect.succeed(
+						htmlResponse(
+							generateLoginPageHtml(pocketbaseUrl, pocketbaseUrlMicrosoft),
+							401,
+						),
+					);
+				}),
+			),
+		);
+		return result;
 	};
-}
+};
+
+/**
+ * Helper to get user info for error pages (partial auth without group check)
+ * Exported for reuse in Express middleware
+ */
+export const getUserForErrorPage = (
+	request: Request,
+	options: PocketBaseAuthOptions,
+): Effect.Effect<AuthenticatedUser, AuthError> => {
+	const { pocketbaseUrl } = options;
+
+	return Effect.gen(function* () {
+		const pb = new PocketBase(pocketbaseUrl);
+		const cookie = yield* extractCookie(request);
+		yield* loadAuthStore(pb, cookie);
+		yield* refreshAuth(pb);
+		const { user } = yield* extractUserRecord(pb);
+		return user;
+	});
+};
 
 /**
  * Handle all auth-related requests
  *
  * Use this as a catch-all handler in your edge function
  */
-export async function handleAuthRequest(
+export const handleAuthRequest = async (
 	request: Request,
 	options: PocketBaseAuthOptions,
-): Promise<Response | null> {
-	// Validate required options
-	if (!options.pocketbaseUrl) {
-		return htmlResponse(
-			"<h1>Configuration Error</h1><p>POCKETBASE_URL environment variable is not set.</p>",
-			500,
-		);
-	}
-	if (!options.groupField) {
-		return htmlResponse(
-			"<h1>Configuration Error</h1><p>POCKETBASE_GROUP environment variable is not set.</p>",
-			500,
-		);
+): Promise<Response | null> => {
+	// Validate config first
+	const configResult = await Effect.runPromiseExit(validateConfig(options));
+
+	if (configResult._tag === "Failure") {
+		const error = configResult.cause;
+		if (error._tag === "Fail" && error.error._tag === "ConfigurationError") {
+			return configErrorToResponse(error.error);
+		}
+		return htmlResponse("<h1>Unknown Error</h1>", 500);
 	}
 
 	const url = new URL(request.url);
 
+	// Handle cookie endpoint
 	if (url.pathname === "/api/cookie" && request.method === "POST") {
-		return handleCookieRequest(request, options.pocketbaseUrl);
+		const result = await Effect.runPromiseExit(
+			handleCookieRequest(request, options.pocketbaseUrl),
+		);
+
+		if (result._tag === "Failure") {
+			const error = result.cause;
+			if (error._tag === "Fail" && error.error._tag === "RequestError") {
+				return requestErrorToResponse(error.error);
+			}
+			return jsonResponse({ error: "Unknown error" }, 500);
+		}
+		return result.value;
 	}
 
+	// Handle logout endpoint
 	if (url.pathname === "/api/logout" && request.method === "POST") {
 		return handleLogoutRequest("/");
 	}
 
+	// Run auth middleware
 	const authMiddleware = createAuthMiddleware(options);
 	return authMiddleware(request);
-}
+};
