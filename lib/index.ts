@@ -580,8 +580,9 @@ export const createAuthMiddleware = (options: PocketBaseAuthOptions) => {
 
 /**
  * Helper to get user info for error pages (partial auth without group check)
+ * Exported for reuse in Express middleware
  */
-const getUserForErrorPage = (
+export const getUserForErrorPage = (
 	request: Request,
 	options: PocketBaseAuthOptions,
 ): Effect.Effect<AuthenticatedUser, AuthError> => {
@@ -643,105 +644,4 @@ export const handleAuthRequest = async (
 	// Run auth middleware
 	const authMiddleware = createAuthMiddleware(options);
 	return authMiddleware(request);
-};
-
-// --- Legacy API (for backwards compatibility during migration) ---
-
-/**
- * @deprecated Use verifyAuth with Effect.runPromise instead
- *
- * Legacy result type for backwards compatibility
- */
-export interface LegacyAuthResult {
-	isAuthenticated: boolean;
-	isAuthorized: boolean;
-	user?: { id: string; email: string };
-	error?: string;
-}
-
-/**
- * @deprecated Use verifyAuth with Effect.runPromise instead
- *
- * Legacy wrapper that converts Effect-based verifyAuth to old return format
- */
-export const verifyAuthLegacy = async (
-	request: Request,
-	options: PocketBaseAuthOptions,
-): Promise<LegacyAuthResult> => {
-	const result = await Effect.runPromiseExit(verifyAuth(request, options));
-
-	if (result._tag === "Success") {
-		return {
-			isAuthenticated: true,
-			isAuthorized: true,
-			user: result.value.user,
-		};
-	}
-
-	const cause = result.cause;
-	if (cause._tag === "Fail" && cause.error._tag === "AuthError") {
-		const error = cause.error;
-
-		switch (error.reason) {
-			case "NoCookie":
-			case "InvalidCookie":
-			case "AuthRefreshFailed":
-			case "NoUserRecord":
-				return {
-					isAuthenticated: false,
-					isAuthorized: false,
-					error: error.message,
-				};
-
-			case "NotInRequiredGroup":
-			case "GroupCheckFailed": {
-				// Try to get user info
-				const userResult = await Effect.runPromiseExit(
-					getUserForErrorPage(request, options),
-				);
-				if (userResult._tag === "Success") {
-					return {
-						isAuthenticated: true,
-						isAuthorized: false,
-						user: userResult.value,
-						error: error.message,
-					};
-				}
-				return {
-					isAuthenticated: true,
-					isAuthorized: false,
-					error: error.message,
-				};
-			}
-		}
-	}
-
-	return {
-		isAuthenticated: false,
-		isAuthorized: false,
-		error: "Unknown error",
-	};
-};
-
-/**
- * @deprecated Use handleCookieRequest with Effect.runPromise instead
- */
-export const handleCookieRequestLegacy = async (
-	request: Request,
-	pocketbaseUrl: string,
-): Promise<Response> => {
-	const result = await Effect.runPromiseExit(
-		handleCookieRequest(request, pocketbaseUrl),
-	);
-
-	if (result._tag === "Success") {
-		return result.value;
-	}
-
-	const cause = result.cause;
-	if (cause._tag === "Fail" && cause.error._tag === "RequestError") {
-		return requestErrorToResponse(cause.error);
-	}
-
-	return jsonResponse({ error: "Unknown error" }, 500);
 };

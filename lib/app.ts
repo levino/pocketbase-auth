@@ -9,6 +9,7 @@ import express, {
 import {
 	generateLoginPageHtml,
 	generateNotAMemberPageHtml,
+	getUserForErrorPage,
 	handleCookieRequest,
 	handleLogoutRequest,
 	type PocketBaseAuthOptions,
@@ -137,8 +138,13 @@ export function createApp() {
 					case "NotInRequiredGroup":
 					case "GroupCheckFailed": {
 						// Try to get user email for better error message
-						// Re-run partial auth to get user info
-						const userEmail = await getUserEmailForError(webRequest, options);
+						// Use the shared Effect-based helper from index.ts
+						const userExit = await Effect.runPromiseExit(
+							getUserForErrorPage(webRequest, options),
+						);
+						const userEmail = Exit.isSuccess(userExit)
+							? userExit.value.email
+							: "unknown";
 						return res
 							.status(403)
 							.send(
@@ -163,34 +169,6 @@ export function createApp() {
 				);
 		})
 		.use(express.static(path.join(__dirname, "/build")));
-}
-
-/**
- * Helper to get user email for error pages
- * Re-runs partial auth pipeline to extract user info
- */
-async function getUserEmailForError(
-	request: globalThis.Request,
-	options: PocketBaseAuthOptions,
-): Promise<string> {
-	// Import PocketBase dynamically to avoid circular issues
-	const PocketBase = (await import("pocketbase")).default;
-
-	const cookie = request.headers.get("Cookie");
-	if (!cookie) return "unknown";
-
-	const pb = new PocketBase(options.pocketbaseUrl);
-	pb.authStore.loadFromCookie(cookie);
-
-	if (!pb.authStore.isValid) return "unknown";
-
-	try {
-		await pb.collection("users").authRefresh();
-		const user = pb.authStore.record;
-		return user?.email || "unknown";
-	} catch {
-		return "unknown";
-	}
 }
 
 // Only start server when run directly, not when imported
