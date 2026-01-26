@@ -1,5 +1,6 @@
 import path from "node:path";
 import cookieParser from "cookie-parser";
+import { Effect, Exit } from "effect";
 import express, {
 	type NextFunction,
 	type Request,
@@ -11,6 +12,7 @@ import {
 	handleCookieRequest,
 	handleLogoutRequest,
 	type PocketBaseAuthOptions,
+	requestErrorToResponse,
 	verifyAuth,
 } from "./index.ts";
 
@@ -85,11 +87,20 @@ export function createApp() {
 		.use("/api", express.json())
 		.post("/api/cookie", async (req: Request, res: Response) => {
 			const webRequest = toWebRequest(req);
-			const webResponse = await handleCookieRequest(
-				webRequest,
-				options.pocketbaseUrl,
+			const exit = await Effect.runPromiseExit(
+				handleCookieRequest(webRequest, options.pocketbaseUrl),
 			);
-			await sendWebResponse(webResponse, res);
+
+			if (Exit.isSuccess(exit)) {
+				await sendWebResponse(exit.value, res);
+			} else {
+				const cause = exit.cause;
+				if (cause._tag === "Fail" && cause.error._tag === "RequestError") {
+					await sendWebResponse(requestErrorToResponse(cause.error), res);
+				} else {
+					res.status(500).json({ error: "Unknown error" });
+				}
+			}
 		})
 		.post("/api/logout", async (_req: Request, res: Response) => {
 			const webResponse = handleLogoutRequest("/");
@@ -97,34 +108,89 @@ export function createApp() {
 		})
 		.use(async (req: Request, res: Response, next: NextFunction) => {
 			const webRequest = toWebRequest(req);
-			const result = await verifyAuth(webRequest, options);
+			const exit = await Effect.runPromiseExit(verifyAuth(webRequest, options));
 
-			if (!result.isAuthenticated) {
-				return res
-					.status(401)
-					.send(
-						generateLoginPageHtml(
-							options.pocketbaseUrl,
-							options.pocketbaseUrlMicrosoft,
-						),
-					);
+			if (Exit.isSuccess(exit)) {
+				// User is authenticated and authorized
+				return next();
 			}
 
-			if (!result.isAuthorized && result.user) {
-				return res
-					.status(403)
-					.send(
-						generateNotAMemberPageHtml(
-							result.user.email,
-							options.groupField,
-							options.pocketbaseUrl,
-						),
-					);
+			// Handle auth errors
+			const cause = exit.cause;
+			if (cause._tag === "Fail" && cause.error._tag === "AuthError") {
+				const error = cause.error;
+
+				switch (error.reason) {
+					case "NoCookie":
+					case "InvalidCookie":
+					case "AuthRefreshFailed":
+					case "NoUserRecord":
+						return res
+							.status(401)
+							.send(
+								generateLoginPageHtml(
+									options.pocketbaseUrl,
+									options.pocketbaseUrlMicrosoft,
+								),
+							);
+
+					case "NotInRequiredGroup":
+					case "GroupCheckFailed": {
+						// Try to get user email for better error message
+						// Re-run partial auth to get user info
+						const userEmail = await getUserEmailForError(webRequest, options);
+						return res
+							.status(403)
+							.send(
+								generateNotAMemberPageHtml(
+									userEmail,
+									options.groupField,
+									options.pocketbaseUrl,
+								),
+							);
+					}
+				}
 			}
 
-			return next();
+			// Unknown error - show login page
+			return res
+				.status(401)
+				.send(
+					generateLoginPageHtml(
+						options.pocketbaseUrl,
+						options.pocketbaseUrlMicrosoft,
+					),
+				);
 		})
 		.use(express.static(path.join(__dirname, "/build")));
+}
+
+/**
+ * Helper to get user email for error pages
+ * Re-runs partial auth pipeline to extract user info
+ */
+async function getUserEmailForError(
+	request: globalThis.Request,
+	options: PocketBaseAuthOptions,
+): Promise<string> {
+	// Import PocketBase dynamically to avoid circular issues
+	const PocketBase = (await import("pocketbase")).default;
+
+	const cookie = request.headers.get("Cookie");
+	if (!cookie) return "unknown";
+
+	const pb = new PocketBase(options.pocketbaseUrl);
+	pb.authStore.loadFromCookie(cookie);
+
+	if (!pb.authStore.isValid) return "unknown";
+
+	try {
+		await pb.collection("users").authRefresh();
+		const user = pb.authStore.record;
+		return user?.email || "unknown";
+	} catch {
+		return "unknown";
+	}
 }
 
 // Only start server when run directly, not when imported
