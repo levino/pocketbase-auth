@@ -5,11 +5,14 @@ import express, {
 	type Request,
 	type Response,
 } from "express";
+import { createProxyMiddleware } from "http-proxy-middleware";
 import {
-	generateLoginPageHtml,
+	type AuthMode,
+	generateLoginPageHtmlWithRedirect,
 	generateNotAMemberPageHtml,
 	handleCookieRequest,
 	handleLogoutRequest,
+	handleVerifyRequest,
 	type PocketBaseAuthOptions,
 	verifyAuth,
 } from "./index.ts";
@@ -61,11 +64,26 @@ async function sendWebResponse(
 }
 
 /**
+ * Extend Express Request to include user info after auth
+ */
+declare global {
+	namespace Express {
+		interface Request {
+			authUser?: { id: string; email: string };
+		}
+	}
+}
+
+/**
  * Creates the Express app for Docker deployment
  */
 export function createApp() {
 	const pocketbaseUrl = process.env.POCKETBASE_URL;
 	const groupField = process.env.POCKETBASE_GROUP;
+	const authMode = (process.env.AUTH_MODE || "static") as AuthMode;
+	const upstreamUrl = process.env.UPSTREAM_URL;
+	const allowedRedirectDomains = process.env.ALLOWED_REDIRECT_DOMAINS;
+	const publicUrl = process.env.PUBLIC_URL;
 
 	if (!pocketbaseUrl) {
 		throw new Error("POCKETBASE_URL environment variable is required");
@@ -73,58 +91,146 @@ export function createApp() {
 	if (!groupField) {
 		throw new Error("POCKETBASE_GROUP environment variable is required");
 	}
+	if (authMode === "proxy" && !upstreamUrl) {
+		throw new Error(
+			"UPSTREAM_URL environment variable is required when AUTH_MODE=proxy",
+		);
+	}
 
 	const options: PocketBaseAuthOptions = {
 		pocketbaseUrl,
 		pocketbaseUrlMicrosoft: process.env.POCKETBASE_URL_MICROSOFT,
 		groupField,
+		authMode,
+		upstreamUrl,
+		allowedRedirectDomains,
+		publicUrl,
 	};
 
-	return express()
+	const app = express()
 		.use(cookieParser())
-		.use("/api", express.json())
-		.post("/api/cookie", async (req: Request, res: Response) => {
-			const webRequest = toWebRequest(req);
-			const webResponse = await handleCookieRequest(
-				webRequest,
-				options.pocketbaseUrl,
+		.use("/api", express.json());
+
+	// ForwardAuth verify endpoint - returns 200/401/403 with headers
+	app.get("/auth/verify", async (req: Request, res: Response) => {
+		const webRequest = toWebRequest(req);
+		const webResponse = await handleVerifyRequest(webRequest, options);
+		await sendWebResponse(webResponse, res);
+	});
+
+	// Login page with optional redirect parameter
+	app.get("/login", (req: Request, res: Response) => {
+		const redirectUrl = req.query.rd as string | undefined;
+		res
+			.status(200)
+			.send(
+				generateLoginPageHtmlWithRedirect(
+					options.pocketbaseUrl,
+					options.pocketbaseUrlMicrosoft,
+					redirectUrl,
+					options.allowedRedirectDomains,
+					options.publicUrl,
+				),
 			);
-			await sendWebResponse(webResponse, res);
-		})
-		.post("/api/logout", async (_req: Request, res: Response) => {
-			const webResponse = handleLogoutRequest("/");
-			await sendWebResponse(webResponse, res);
-		})
-		.use(async (req: Request, res: Response, next: NextFunction) => {
-			const webRequest = toWebRequest(req);
-			const result = await verifyAuth(webRequest, options);
+	});
 
-			if (!result.isAuthenticated) {
-				return res
-					.status(401)
-					.send(
-						generateLoginPageHtml(
-							options.pocketbaseUrl,
-							options.pocketbaseUrlMicrosoft,
-						),
-					);
+	// API endpoints
+	app.post("/api/cookie", async (req: Request, res: Response) => {
+		const webRequest = toWebRequest(req);
+		const webResponse = await handleCookieRequest(
+			webRequest,
+			options.pocketbaseUrl,
+		);
+		await sendWebResponse(webResponse, res);
+	});
+
+	app.post("/api/logout", async (_req: Request, res: Response) => {
+		const webResponse = handleLogoutRequest("/");
+		await sendWebResponse(webResponse, res);
+	});
+
+	// Auth middleware for protected routes
+	const authMiddleware = async (
+		req: Request,
+		res: Response,
+		next: NextFunction,
+	) => {
+		const webRequest = toWebRequest(req);
+		const result = await verifyAuth(webRequest, options);
+
+		if (!result.isAuthenticated) {
+			// In forwardauth mode, the login redirect is handled by Traefik
+			// So we just return 401 status
+			if (authMode === "forwardauth") {
+				return res.status(401).send("Unauthorized");
 			}
 
-			if (!result.isAuthorized && result.user) {
-				return res
-					.status(403)
-					.send(
-						generateNotAMemberPageHtml(
-							result.user.email,
-							options.groupField,
-							options.pocketbaseUrl,
-						),
-					);
-			}
+			// In static/proxy mode, show login page
+			const redirectUrl =
+				authMode === "proxy" ? `${req.protocol}://${req.get("host")}${req.originalUrl}` : undefined;
+			return res
+				.status(401)
+				.send(
+					generateLoginPageHtmlWithRedirect(
+						options.pocketbaseUrl,
+						options.pocketbaseUrlMicrosoft,
+						redirectUrl,
+						options.allowedRedirectDomains,
+						options.publicUrl,
+					),
+				);
+		}
 
-			return next();
-		})
-		.use(express.static(path.join(__dirname, "/build")));
+		if (!result.isAuthorized && result.user) {
+			return res
+				.status(403)
+				.send(
+					generateNotAMemberPageHtml(
+						result.user.email,
+						options.groupField,
+						options.pocketbaseUrl,
+					),
+				);
+		}
+
+		// Store user info on request for proxy mode
+		if (result.user) {
+			req.authUser = result.user;
+		}
+
+		return next();
+	};
+
+	// Apply auth middleware and either proxy or static file serving
+	if (authMode === "proxy" && upstreamUrl) {
+		// Proxy mode: forward authenticated requests to upstream
+		const proxyMiddleware = createProxyMiddleware({
+			target: upstreamUrl,
+			changeOrigin: true,
+			ws: true, // WebSocket support
+			on: {
+				proxyReq: (proxyReq, req) => {
+					// Add user info headers to upstream
+					const expressReq = req as Request;
+					if (expressReq.authUser) {
+						proxyReq.setHeader("X-Auth-User", expressReq.authUser.id);
+						proxyReq.setHeader("X-Auth-Email", expressReq.authUser.email || "");
+					}
+					if (groupField) {
+						proxyReq.setHeader("X-Auth-Groups", groupField);
+					}
+				},
+			},
+		});
+
+		app.use("/", authMiddleware, proxyMiddleware);
+	} else {
+		// Static mode (default): serve static files after auth
+		app.use(authMiddleware);
+		app.use(express.static(path.join(__dirname, "/build")));
+	}
+
+	return app;
 }
 
 // Only start server when run directly, not when imported

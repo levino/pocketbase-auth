@@ -1,4 +1,13 @@
 import PocketBase from "pocketbase";
+import { getSafeRedirectUrl, isAllowedRedirect } from "./utils/redirect.ts";
+
+// Re-export redirect utilities
+export { getSafeRedirectUrl, isAllowedRedirect };
+
+/**
+ * Auth mode determines how the application handles requests
+ */
+export type AuthMode = "static" | "forwardauth" | "proxy";
 
 /**
  * Configuration options for the PocketBase auth middleware
@@ -10,6 +19,14 @@ export interface PocketBaseAuthOptions {
 	pocketbaseUrlMicrosoft?: string;
 	/** Name of the group field to check for authorization */
 	groupField: string;
+	/** Auth mode: static (default), forwardauth, or proxy */
+	authMode?: AuthMode;
+	/** Comma-separated list of allowed redirect domains (for forwardauth mode) */
+	allowedRedirectDomains?: string;
+	/** Public URL of this auth service (for redirect validation) */
+	publicUrl?: string;
+	/** Upstream URL for proxy mode */
+	upstreamUrl?: string;
 }
 
 /**
@@ -354,6 +371,193 @@ export function handleLogoutRequest(redirectUrl = "/"): Response {
 }
 
 /**
+ * Handle GET /auth/verify - ForwardAuth endpoint for Traefik
+ *
+ * Returns:
+ * - 200 OK with X-Auth-* headers if authenticated and authorized
+ * - 401 Unauthorized if not authenticated
+ * - 403 Forbidden if authenticated but not in required group
+ */
+export async function handleVerifyRequest(
+	request: Request,
+	options: PocketBaseAuthOptions,
+): Promise<Response> {
+	const result = await verifyAuth(request, options);
+
+	if (!result.isAuthenticated) {
+		return new Response("Unauthorized", {
+			status: 401,
+			headers: { "Content-Type": "text/plain" },
+		});
+	}
+
+	if (!result.isAuthorized) {
+		return new Response("Forbidden - not a group member", {
+			status: 403,
+			headers: { "Content-Type": "text/plain" },
+		});
+	}
+
+	// Success - return 200 with auth headers for upstream
+	const headers = new Headers({
+		"Content-Type": "text/plain",
+	});
+
+	if (result.user) {
+		headers.set("X-Auth-User", result.user.id);
+		headers.set("X-Auth-Email", result.user.email || "");
+	}
+
+	if (options.groupField) {
+		headers.set("X-Auth-Groups", options.groupField);
+	}
+
+	return new Response("OK", { status: 200, headers });
+}
+
+/**
+ * Generate login page HTML with optional redirect URL support
+ */
+export function generateLoginPageHtmlWithRedirect(
+	pocketbaseUrl: string,
+	pocketbaseUrlMicrosoft?: string,
+	redirectUrl?: string,
+	allowedRedirectDomains?: string,
+	publicUrl?: string,
+): string {
+	// Validate redirect URL if provided
+	const safeRedirectUrl = redirectUrl
+		? getSafeRedirectUrl(redirectUrl, allowedRedirectDomains, publicUrl, "")
+		: "";
+
+	const safePbUrl = escapeJs(pocketbaseUrl);
+	const safePbUrlMicrosoft = escapeJs(pocketbaseUrlMicrosoft || pocketbaseUrl);
+	const safeRedirect = escapeJs(safeRedirectUrl);
+
+	// Generate the redirect script portion
+	const redirectScript = safeRedirectUrl
+		? `
+      // Store redirect URL in cookie for after auth
+      document.cookie = 'auth_redirect=${safeRedirect}; Path=/; Max-Age=300; SameSite=Lax';`
+		: "";
+
+	return `<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Einloggen</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/infima@0.2.0-alpha.45/dist/css/default/default.min.css" />
+  <style>
+    .stack-vertically {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      align-items: flex-start;
+    }
+  </style>
+</head>
+<body>
+<div class="container padding-top--lg">
+  <h1>Bitte einloggen</h1>
+  <p>Bitte logge Dich ein, um die Inhalte zu sehen.</p>
+  <div class="stack-vertically padding-bottom--md">
+    <button type="button" class="button button--primary" id="loginWithGithub">Login mit GitHub</button>
+    <button type="button" class="button button--primary" id="loginWithGoogle">Login mit Google</button>
+    <button type="button" class="button button--primary" id="loginWithMicrosoft">Login mit Microsoft</button>
+  </div>
+
+  <h2>FAQ</h2>
+
+  <h3>Wie kann ich mir einen Account machen?</h3>
+
+  <p>Es ist nicht nötig, einen Account anzulegen. Wenn Du einen Google-Account hast, drück auf "Login mit Google", wenn Du einen Github-Account hast, drück auf "Login mit GitHub". Folge danach jeweils den Anweisungen, die Du siehst.</p>
+
+  <p>Wenn Du weder einen Account bei Google noch bei Github hast, drück einfach eine der beiden Schaltflächen und lege Dir einen neuen Account bei Google oder GitHub an (ich empfehle GitHub, das ist auch nützlich für die Bearbeitung der Inhalte und den Zugang zum Forum). Folge danach wieder den Anweisungen, die Du siehst. Falls Du dabei stecken bleibst, komm wieder auf diese Seite und klick wieder auf die gleiche Schaltfläche wie zuvor.</p>
+
+  <h3>Warum bietest du keinen Login mit Benutzername und Passwort an?</h3>
+
+  <p>Der Login mit Benutzername und Passwort, bzw. E-Mail und Passwort ist technisch überholt, weil er für Euch unbequem und unsicher und für mich als Seitenbetreiber sehr teuer ist. Die Authentifizierung über Anbieter wie Google oder Github ist dagegen günstig für mich und bequem und sicher für Euch.</p>
+
+  <h4>Unbequem</h4>
+
+  <p>Würde ich es Euch erlauben, Euch mit E-Mail-Adresse und Passwort anzumelden, müsstet ihr Euch ein neues Passwort ausdenken oder erstellen lassen. Dieses müsstet ihr entweder aufschreiben oder speichern. Alles sehr umständlich. Außerdem würden viele Nutzer:innen ein Passwort verwenden, was sie bereits schon woanders verwendet haben, was sehr <a href="https://www.bsi.bund.de/DE/Themen/Verbraucherinnen-und-Verbraucher/Informationen-und-Empfehlungen/Cyber-Sicherheitsempfehlungen/Accountschutz/Sichere-Passwoerter-erstellen/Umgang-mit-Passwoertern/umgang-mit-passwoertern_node.html#:~:text=Viele%20Anwenderinnen%20und,ebenfalls%20verwendet%20wird." target="_blank" rel="noopener noreferrer">gefährlich</a> ist.</p>
+
+  <h4>Unsicher</h4>
+
+  <p>Um den Zugang korrekt abzusichern, müsste ich zusätzlich Zwei-Faktor-Authentifizierung implementieren und anbieten. Das ist aber aus Aufwandsgründen nicht abbildbar. Insofern wäre nur ein einfacher Login mit E-Mail-Adresse und Passwort möglich, was nicht sicher ist.</p>
+
+  <h4>Kosten</h4>
+
+  <p>Login mit E-Mail-Adresse und Passwort bedeutet, dass ich:</p>
+
+  <ul>
+    <li><strong>Passwort-Resets</strong> anbieten müsste, was kompliziert und wartungsintensiv ist.</li>
+    <li><strong>E-Mails</strong> verschicken müsste (z. B. für Bestätigungen oder Passwortänderungen), wofür ein zuverlässiger Mailserver notwendig ist – das kostet Geld und erfordert Pflege.</li>
+    <li><strong>Sicherheitsmaßnahmen</strong> wie Hashing und Schutz gegen Angriffe ständig aktuell halten müsste.</li>
+  </ul>
+
+  <p>Das alles sind Ressourcen, die ich lieber in andere Bereiche investieren möchte.</p>
+
+  <h4>Warum nutzt du Google und GitHub für den Login?</h4>
+
+  <p>Die beiden Anbieter sind seriös und sicher. Um möglichst einfach an den Inhalten mitwirken zu können braucht man ohnehin einen Github-Account. Deshalb habe ich Github eingebunden. Viele wollen aber nur lesen. Für diese Leute habe ich Google eingebunden. Man kann auch beides gleichzeitig verwenden.</p>
+
+  <p>Sowohl Github als auch Google bieten modernste Sicherheit für den Account und haben 2-Faktor-Authentifizierung und unterstützen sogar <a href="https://www.bsi.bund.de/DE/Themen/Verbraucherinnen-und-Verbraucher/Informationen-und-Empfehlungen/Cyber-Sicherheitsempfehlungen/Accountschutz/Passkeys/passkeys-anmelden-ohne-passwort_node.html" target="_blank" rel="noopener noreferrer">Passkeys</a>.</p>
+
+  <p>Ich kann auch weitere Anbieter einbinden. Der Dienst, den ich benutze, unterstützt die folgenden Anbieter zusätzlich zu Google und GitHub:</p>
+
+  <ul>
+    <li>Microsoft</li>
+    <li>Facebook</li>
+    <li>GitLab</li>
+    <li>Discord</li>
+    <li>Spotify</li>
+    <li>u.v.m.</li>
+  </ul>
+
+  <p>Wenn du dir einen dieser Anbieter wünschst, schreibe mir einfach eine E-Mail an <strong><a href="mailto:post@levinkeller.de">post@levinkeller.de</a></strong>. Ich prüfe dann, ob ich diesen Anbieter für den Login hinzufügen kann. Das ist allerdings relativ aufwendig. Prüfe bitte, ob es nicht doch leichter ist, wenn Du Dir einfach einen Google- oder Github-Account anlegst.</p>
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/pocketbase@0.26.0/dist/pocketbase.umd.min.js"></script>
+<script>
+  const pb = new PocketBase("${safePbUrl}");
+  const pbMicrosoft = new PocketBase("${safePbUrlMicrosoft}");
+  ${redirectScript}
+
+  const saveTokenAndReload = (token) =>
+    fetch('/api/cookie', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    }).then(() => {
+      // Check for redirect cookie
+      const cookies = document.cookie.split(';');
+      const redirectCookie = cookies.find(c => c.trim().startsWith('auth_redirect='));
+      if (redirectCookie) {
+        const redirectUrl = redirectCookie.split('=')[1];
+        // Clear the cookie
+        document.cookie = 'auth_redirect=; Path=/; Max-Age=0';
+        if (redirectUrl) {
+          window.location.href = decodeURIComponent(redirectUrl);
+          return;
+        }
+      }
+      window.location.reload();
+    });
+
+  document.getElementById('loginWithGithub').addEventListener('click', () =>
+    pb.collection('users').authWithOAuth2({ provider: 'github' }).then(() => saveTokenAndReload(pb.authStore.token)));
+  document.getElementById('loginWithGoogle').addEventListener('click', () =>
+    pb.collection('users').authWithOAuth2({ provider: 'google' }).then(() => saveTokenAndReload(pb.authStore.token)));
+  document.getElementById('loginWithMicrosoft').addEventListener('click', () =>
+    pbMicrosoft.collection('users').authWithOAuth2({ provider: 'microsoft' }).then(() => saveTokenAndReload(pbMicrosoft.authStore.token)));
+</script>
+</body>
+</html>`;
+}
+
+/**
  * Create auth middleware for edge runtimes (Cloudflare Pages, etc.)
  *
  * Returns null if authenticated and authorized, otherwise returns a Response
@@ -411,12 +615,32 @@ export async function handleAuthRequest(
 
 	const url = new URL(request.url);
 
+	// ForwardAuth verify endpoint
+	if (url.pathname === "/auth/verify" && request.method === "GET") {
+		return handleVerifyRequest(request, options);
+	}
+
 	if (url.pathname === "/api/cookie" && request.method === "POST") {
 		return handleCookieRequest(request, options.pocketbaseUrl);
 	}
 
 	if (url.pathname === "/api/logout" && request.method === "POST") {
 		return handleLogoutRequest("/");
+	}
+
+	// Handle login page with optional redirect parameter
+	if (url.pathname === "/login" && request.method === "GET") {
+		const redirectUrl = url.searchParams.get("rd") || undefined;
+		return htmlResponse(
+			generateLoginPageHtmlWithRedirect(
+				options.pocketbaseUrl,
+				options.pocketbaseUrlMicrosoft,
+				redirectUrl,
+				options.allowedRedirectDomains,
+				options.publicUrl,
+			),
+			200,
+		);
 	}
 
 	const authMiddleware = createAuthMiddleware(options);
