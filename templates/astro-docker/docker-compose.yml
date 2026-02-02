@@ -1,0 +1,41 @@
+# Example: Protect a service with PocketBase auth using ForwardAuth
+#
+# This example uses Traefik as reverse proxy with ForwardAuth middleware.
+# The hello-world service is only accessible after authentication.
+
+services:
+  traefik:
+    image: traefik:v3.0
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  auth:
+    build: .
+    environment:
+      - POCKETBASE_URL=https://your-pocketbase.example.com
+      - POCKETBASE_GROUP=members
+    labels:
+      - "traefik.enable=true"
+      # Auth service accessible at auth.localhost
+      - "traefik.http.routers.auth.rule=Host(`auth.localhost`)"
+      - "traefik.http.services.auth.loadbalancer.server.port=3000"
+      # ForwardAuth middleware - checks /auth/verify
+      - "traefik.http.middlewares.pocketbase-auth.forwardauth.address=http://auth:3000/auth/verify"
+      - "traefik.http.middlewares.pocketbase-auth.forwardauth.authResponseHeaders=X-Auth-User,X-Auth-Email"
+
+  # Example protected service - replace with your actual service (Fava, Grafana, etc.)
+  hello-world:
+    image: nginx:alpine
+    volumes:
+      - ./hello.html:/usr/share/nginx/html/index.html:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.hello.rule=Host(`app.localhost`)"
+      - "traefik.http.routers.hello.middlewares=pocketbase-auth@docker"
+      - "traefik.http.services.hello.loadbalancer.server.port=80"
