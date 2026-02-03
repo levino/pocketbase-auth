@@ -6,13 +6,13 @@ Astro app with PocketBase auth deployed to Cloudflare Workers.
 
 ```mermaid
 graph LR
-    Browser -->|Request| CF[Cloudflare Worker]
-    CF -->|middleware.ts| Auth{Authenticated?}
-    Auth -->|No| Login[/login]
-    Auth -->|Yes| App[/index.astro<br>Your App]
-    Login -->|OAuth| PB[PocketBase]
-    PB -->|Token| Cookie[/auth/cookie]
-    Cookie -->|Set cookie| Browser
+    Browser -->|Request| CF["Cloudflare Worker"]
+    CF -->|middleware.ts| Auth{"Authenticated?"}
+    Auth -->|No| Login["Login Page"]
+    Auth -->|Yes| App["Your App"]
+    Login -->|OAuth| PB["PocketBase"]
+    PB -->|Token| Cookie["Set Cookie"]
+    Cookie -->|Redirect| Browser
 ```
 
 ## Structure
