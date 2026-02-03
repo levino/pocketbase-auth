@@ -1,0 +1,7 @@
+name = "pocketbase-auth-demo"
+compatibility_date = "2024-11-01"
+pages_build_output_dir = "./dist"
+
+[vars]
+POCKETBASE_URL = "https://your-pocketbase.example.com"
+POCKETBASE_GROUP = "members"
