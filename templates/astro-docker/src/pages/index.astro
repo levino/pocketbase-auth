@@ -25,7 +25,7 @@ const user = Astro.locals.user;
 			<p>Logged in as: <span class="email">{user?.email}</span></p>
 			<p>User ID: {user?.id}</p>
 			<div class="logout">
-				<form action="/auth/logout" method="POST">
+				<form action="/public/auth/logout" method="POST">
 					<button type="submit">Logout</button>
 				</form>
 			</div>

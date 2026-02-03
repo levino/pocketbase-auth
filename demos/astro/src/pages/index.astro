@@ -23,7 +23,7 @@ const user = Astro.locals.user;
 			<h1>My Protected App</h1>
 			<p>Welcome, <span class="email">{user?.email}</span></p>
 			<p>This page is protected by PocketBase auth on Cloudflare Workers.</p>
-			<form action="/auth/logout" method="POST">
+			<form action="/public/auth/logout" method="POST">
 				<button type="submit">Logout</button>
 			</form>
 		</div>

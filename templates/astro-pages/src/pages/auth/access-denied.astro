@@ -1,0 +1,21 @@
+---
+import Layout from "../../layouts/Layout.astro";
+
+const userEmail = Astro.locals.user?.email || "Unknown";
+---
+
+<Layout title="Access Denied">
+	<div class="card bg-base-100 shadow-xl w-full max-w-lg text-center">
+		<div class="card-body">
+			<h1 class="card-title text-2xl text-error justify-center">Access Denied</h1>
+			<p class="text-base-content/60">You are logged in as <span class="font-bold text-base-content">{userEmail}</span></p>
+			<p class="text-base-content/60">Unfortunately, you are not a member of the required group to access this content.</p>
+			<p class="text-base-content/60">Please contact the administrator to request access.</p>
+			<div class="card-actions justify-center mt-4">
+				<form action="/auth/logout" method="POST">
+					<button type="submit" class="btn btn-error">Logout</button>
+				</form>
+			</div>
+		</div>
+	</div>
+</Layout>

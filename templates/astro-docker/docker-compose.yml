@@ -25,8 +25,8 @@ services:
       # Auth service accessible at auth.localhost
       - "traefik.http.routers.auth.rule=Host(`auth.localhost`)"
       - "traefik.http.services.auth.loadbalancer.server.port=3000"
-      # ForwardAuth middleware - checks /auth/verify
-      - "traefik.http.middlewares.pocketbase-auth.forwardauth.address=http://auth:3000/auth/verify"
+      # ForwardAuth middleware - checks /public/auth/verify
+      - "traefik.http.middlewares.pocketbase-auth.forwardauth.address=http://auth:3000/public/auth/verify"
       - "traefik.http.middlewares.pocketbase-auth.forwardauth.authResponseHeaders=X-Auth-User,X-Auth-Email"
 
   # Example protected service - replace with your actual service (Fava, Grafana, etc.)

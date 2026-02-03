@@ -1,0 +1,7 @@
+---
+import OAuthLoginButton from "./OAuthLoginButton.astro";
+
+const { config } = Astro.props
+---
+
+<OAuthLoginButton provider="google" label="Continue with Google" config={config} />

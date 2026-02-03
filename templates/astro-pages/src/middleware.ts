@@ -1,49 +1,103 @@
-import PocketBase from "pocketbase";
-import { defineMiddleware } from "astro:middleware";
+import PocketBase from "pocketbase"
+import { defineMiddleware } from "astro:middleware"
+import { Context, Data, Effect, Either, pipe } from "effect"
+import authConfig from "./authConfig"
+import type { APIContext, MiddlewareNext } from "astro"
 
-const POCKETBASE_URL = import.meta.env.POCKETBASE_URL;
-const POCKETBASE_GROUP = import.meta.env.POCKETBASE_GROUP;
+class PocketBaseService extends Context.Tag("PocketBaseService")<
+	PocketBaseService,
+	PocketBase
+>() {}
 
-export const onRequest = defineMiddleware(async (context, next) => {
-	const { pathname } = context.url;
+class MissingCookieError extends Data.TaggedError("MissingCookieError")<{}> {}
+class InvalidAuthError extends Data.TaggedError("InvalidAuthError")<{}> {}
+class AccessDeniedError extends Data.TaggedError("AccessDeniedError")<{}> {}
 
-	// Public routes - no auth required
-	if (
-		pathname === "/login" ||
-		pathname === "/access-denied" ||
-		pathname.startsWith("/auth/") ||
-		pathname.startsWith("/_")
-	) {
-		return next();
-	}
+const storeCookie = (cookie: string) =>
+	Effect.gen(function* () {
+		const pocketBase = yield* PocketBaseService
+		pocketBase.authStore.loadFromCookie(cookie)
+	})
 
-	// Get auth cookie
-	const cookie = context.request.headers.get("cookie") || "";
-	const pb = new PocketBase(POCKETBASE_URL);
-	pb.authStore.loadFromCookie(cookie);
+const refreshAuth = Effect.gen(function* () {
+	const pocketBase = yield* PocketBaseService
+	yield* Effect.tryPromise(() => pocketBase.collection("users").authRefresh())
+})
 
-	// Check authentication
-	if (!pb.authStore.isValid) {
-		return context.redirect("/login");
-	}
+const getUser = Effect.gen(function* () {
+	const pocketBase = yield* PocketBaseService
+	const user = pocketBase.authStore.record
+	if (!user) return yield* Effect.fail(new InvalidAuthError())
+	return user
+})
 
-	try {
-		// Refresh token and get user
-		await pb.collection("users").authRefresh();
-		const user = pb.authStore.record;
+const checkGroupAccess = Effect.gen(function* () {
+	const pocketBase = yield* PocketBaseService
+	const user = yield* getUser
+	const groups = yield* Effect.tryPromise(() =>
+		pocketBase.collection("groups").getFirstListItem(`user_id="${user.id}"`),
+	)
+	if (!groups[authConfig.pocketbaseGroup])
+		yield* Effect.fail(new AccessDeniedError())
+})
 
-		// Check group membership
-		if (POCKETBASE_GROUP && user) {
-			const groups = await pb.collection("groups").getFirstListItem(`user_id="${user.id}"`);
-			if (!groups[POCKETBASE_GROUP]) {
-				return context.redirect("/access-denied");
-			}
-		}
+const verifyGroupMembership = (cookie: string) =>
+	pipe(
+		storeCookie(cookie),
+		Effect.andThen(refreshAuth),
+		Effect.andThen(checkGroupAccess),
+	)
 
-		// Store user in locals for pages to access
-		context.locals.user = user;
-		return next();
-	} catch {
-		return context.redirect("/login");
-	}
-});
+const withPocketBase =
+	<A, E>(
+		effectFn: (cookie: string) => Effect.Effect<A, E, PocketBaseService>,
+		pocketBase: PocketBase,
+	) =>
+	(cookie: string) =>
+		Effect.provideService(effectFn(cookie), PocketBaseService, pocketBase)
+
+const pathStartsWithAuth = (
+	context: APIContext,
+): Either.Either<"public", string> =>
+	context.url.pathname.startsWith("/auth/")
+		? Either.right("public" as const)
+		: Either.left(context.url.pathname)
+
+const getCookie = (
+	context: APIContext,
+): Effect.Effect<string, MissingCookieError> => {
+	const cookie = context.request.headers.get("cookie")
+	return cookie ? Effect.succeed(cookie) : Effect.fail(new MissingCookieError())
+}
+
+const call =
+	<A>(fn: () => Promise<A>) =>
+	() =>
+		Effect.promise(fn)
+
+const authenticateAndContinue = (context: APIContext, next: MiddlewareNext) =>
+	pipe(
+		getCookie(context),
+		// The PocketBase instance could also be created implicitly inside withPocketBase.
+		// We do it here so it is easy to verify that users never share a PocketBase instance,
+		// which would be a security issue.
+		Effect.flatMap(
+			withPocketBase(
+				verifyGroupMembership,
+				new PocketBase(authConfig.pocketbaseUrl),
+			),
+		),
+		Effect.flatMap(call(next)),
+	)
+
+const handleRequest = (context: APIContext, next: MiddlewareNext) =>
+	pipe(
+		pathStartsWithAuth(context),
+		Either.map(call(next)),
+		Either.mapLeft(() => authenticateAndContinue(context, next)),
+		Either.merge,
+	)
+
+export const onRequest = defineMiddleware((context, next) =>
+	Effect.runPromise(handleRequest(context, next)),
+)

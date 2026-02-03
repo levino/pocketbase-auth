@@ -43,7 +43,7 @@ const redirectUrl = Astro.url.searchParams.get("rd") || "/";
 				try {
 					await pb.collection("users").authWithOAuth2({ provider });
 					// Store token as HTTP-only cookie via API
-					await fetch("/auth/cookie", {
+					await fetch("/public/auth/cookie", {
 						method: "POST",
 						headers: { "Content-Type": "application/json" },
 						body: JSON.stringify({ token: pb.authStore.token }),

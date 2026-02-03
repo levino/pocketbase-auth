@@ -7,7 +7,7 @@ export const POST: APIRoute = async () => {
 	return new Response(null, {
 		status: 302,
 		headers: {
-			Location: "/login",
+			Location: "/public/login",
 			"Set-Cookie": "pb_auth=; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=0",
 		},
 	});

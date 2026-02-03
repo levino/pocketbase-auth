@@ -19,7 +19,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.auth.rule=Host(`auth.localhost`)"
       - "traefik.http.services.auth.loadbalancer.server.port=3000"
-      - "traefik.http.middlewares.pb-auth.forwardauth.address=http://auth:3000/auth/verify"
+      - "traefik.http.middlewares.pb-auth.forwardauth.address=http://auth:3000/public/auth/verify"
       - "traefik.http.middlewares.pb-auth.forwardauth.authResponseHeaders=X-Auth-User,X-Auth-Email"
 
   hello:

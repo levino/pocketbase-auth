@@ -28,7 +28,7 @@ const userEmail = Astro.locals.user?.email || "Unknown";
 			<p>Unfortunately, you are not a member of the required group to access this content.</p>
 			<p>Please contact the administrator to request access.</p>
 			<div class="actions">
-				<form action="/auth/logout" method="POST">
+				<form action="/public/auth/logout" method="POST">
 					<button type="submit" class="logout">Logout</button>
 				</form>
 			</div>

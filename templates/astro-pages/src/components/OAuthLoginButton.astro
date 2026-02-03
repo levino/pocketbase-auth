@@ -1,0 +1,47 @@
+---
+interface Props {
+	provider: string
+	label: string
+	config: { pocketbaseUrl: string; redirectUrl: string }
+}
+
+const { provider, label, config } = Astro.props
+---
+
+<oauth-login-button
+	data-provider={provider}
+	data-pocketbase-url={config.pocketbaseUrl}
+	data-redirect-url={config.redirectUrl}
+>
+	<button class="btn btn-primary">{label}</button>
+</oauth-login-button>
+
+<script>
+	import PocketBase from "pocketbase";
+
+	class OAuthLoginButton extends HTMLElement {
+		connectedCallback() {
+			const { provider, pocketbaseUrl, redirectUrl } = this.dataset;
+			const button = this.querySelector("button");
+			button!.addEventListener("click", async () => {
+				try {
+					const pb = new PocketBase(pocketbaseUrl);
+					await pb
+						.collection("users")
+						.authWithOAuth2({ provider: provider! });
+					await fetch("/auth/cookie", {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ token: pb.authStore.token }),
+					});
+					window.location.href = redirectUrl!;
+				} catch (err) {
+					console.error("Login failed:", err);
+					alert("Login failed. Please try again.");
+				}
+			});
+		}
+	}
+
+	customElements.define("oauth-login-button", OAuthLoginButton);
+</script>

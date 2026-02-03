@@ -1,4 +1,11 @@
 {
 	"name": "pocketbase-auth",
-	"private": true
+	"private": true,
+	"workspaces": [
+		"templates/*",
+		"demos/*"
+	],
+	"devDependencies": {
+		"@biomejs/biome": "^2.3.13"
+	}
 }

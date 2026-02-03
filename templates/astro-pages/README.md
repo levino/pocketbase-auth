@@ -5,13 +5,13 @@ Auth pages and middleware for existing Astro projects.
 ## Installation
 
 ```bash
-# Copy into your Astro project
-npx giget gh:levino/pocketbase-auth/templates/astro-pages src/auth-pages
+npx giget gh:levino/pocketbase-auth/templates/astro-pages ./auth-temp
 
-# Then move files to correct locations:
-mv src/auth-pages/src/middleware.ts src/middleware.ts
-mv src/auth-pages/src/pages/* src/pages/
-rm -rf src/auth-pages
+# Move into your project
+mv auth-temp/src/middleware.ts src/middleware.ts
+mv auth-temp/src/env.d.ts src/env.d.ts
+cp -r auth-temp/src/pages/public src/pages/public
+rm -rf auth-temp
 ```
 
 ## Setup
@@ -21,32 +21,29 @@ rm -rf src/auth-pages
    npm install pocketbase
    ```
 
-2. Add environment variables to `.env`:
+2. Set environment variables:
    ```
    POCKETBASE_URL=https://your-pocketbase.example.com
-   POCKETBASE_GROUP=members
+   POCKETBASE_GROUP=members  # optional, skip for auth-only
    ```
 
-3. Configure `astro.config.mjs` for SSR:
+3. Astro config needs SSR:
    ```js
    export default defineConfig({
-     output: "server", // or "hybrid"
+     output: "server",
    });
    ```
 
 ## Files
 
-- `src/middleware.ts` - Auth check for all routes
-- `src/pages/login.astro` - Login page with OAuth buttons
-- `src/pages/access-denied.astro` - Shown when user is not in group
-- `src/pages/auth/verify.ts` - ForwardAuth endpoint (for Traefik/nginx)
-- `src/pages/auth/cookie.ts` - Sets HTTP-only auth cookie
-- `src/pages/auth/logout.ts` - Clears auth cookie
+| File | Route | Description |
+|------|-------|-------------|
+| `src/middleware.ts` | - | Auth check for all non-`/auth/` routes |
+| `src/pages/auth/login.astro` | `/auth/login` | Login page with OAuth buttons |
+| `src/pages/auth/access-denied.astro` | `/auth/access-denied` | Shown when not in group |
+| `src/pages/auth/cookie.ts` | `/auth/cookie` | Sets auth cookie |
+| `src/pages/auth/logout.ts` | `/auth/logout` | Clears auth cookie |
 
 ## Customization
 
-Edit the pages directly to change:
-- Language/text
-- Styling
-- OAuth providers
-- Redirect behavior
+Edit the files directly. They are yours. Change language, styling, providers, whatever you want.
