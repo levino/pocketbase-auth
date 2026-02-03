@@ -75,7 +75,10 @@ const call =
 	() =>
 		Effect.promise(fn)
 
-const authenticateAndContinue = (context: APIContext, next: MiddlewareNext) =>
+const readCookieAndCheckGroupMembership = (
+	context: APIContext,
+	next: MiddlewareNext,
+) =>
 	pipe(
 		getCookie(context),
 		// The PocketBase instance could also be created implicitly inside withPocketBase.
@@ -94,7 +97,7 @@ const handleRequest = (context: APIContext, next: MiddlewareNext) =>
 	pipe(
 		pathStartsWithAuth(context),
 		Either.map(call(next)),
-		Either.mapLeft(() => authenticateAndContinue(context, next)),
+		Either.mapLeft(() => readCookieAndCheckGroupMembership(context, next)),
 		Either.merge,
 	)
 
