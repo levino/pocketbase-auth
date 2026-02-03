@@ -2,17 +2,30 @@
 
 Astro app with PocketBase auth deployed to Cloudflare Workers.
 
+## Architecture
+
+```mermaid
+graph LR
+    Browser -->|Request| CF[Cloudflare Worker]
+    CF -->|middleware.ts| Auth{Authenticated?}
+    Auth -->|No| Login[/login]
+    Auth -->|Yes| App[/index.astro<br>Your App]
+    Login -->|OAuth| PB[PocketBase]
+    PB -->|Token| Cookie[/auth/cookie]
+    Cookie -->|Set cookie| Browser
+```
+
 ## Structure
 
 ```
 src/
-├── middleware.ts          → symlink to templates/astro-pages
-├── env.d.ts               → symlink to templates/astro-pages
+├── middleware.ts            → symlink to templates/astro-pages
+├── env.d.ts                → symlink to templates/astro-pages
 └── pages/
-    ├── index.astro        ← your app (edit this)
-    ├── login.astro        → symlink to templates/astro-pages
-    ├── access-denied.astro→ symlink to templates/astro-pages
-    └── auth/              → symlink to templates/astro-pages
+    ├── index.astro         ← your app (edit this)
+    ├── login.astro         → symlink to templates/astro-pages
+    ├── access-denied.astro → symlink to templates/astro-pages
+    └── auth/               → symlink to templates/astro-pages
         ├── verify.ts
         ├── cookie.ts
         └── logout.ts

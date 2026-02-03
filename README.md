@@ -124,6 +124,14 @@ PORT=8080
 
 Serves static files after authentication. Use this to protect static websites.
 
+```mermaid
+graph LR
+    Browser -->|Request| PBA[pocketbase-auth]
+    PBA -->|Auth check| PB[PocketBase]
+    PBA -->|Authenticated| Static[Static Files<br>/app/build]
+    PBA -->|Not authenticated| Login[Login Page]
+```
+
 ```yaml
 services:
   protected-site:
@@ -146,6 +154,26 @@ Traefik-compatible authentication endpoint. Returns 200/401/403 based on auth st
 | 200 | Authenticated and authorized | `X-Auth-User`, `X-Auth-Email`, `X-Auth-Groups` |
 | 401 | Not authenticated | - |
 | 403 | Authenticated but not in group | - |
+
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant T as Traefik
+    participant A as Auth Service
+    participant U as Upstream App
+
+    B->>T: GET app.example.com
+    T->>A: GET /auth/verify (ForwardAuth)
+    alt 200 OK
+        A-->>T: X-Auth-User, X-Auth-Email
+        T->>U: Proxy request + auth headers
+        U-->>B: Response
+    else 401 Unauthorized
+        T-->>B: Redirect to login
+    else 403 Forbidden
+        A-->>B: Not a member page
+    end
+```
 
 **Traefik Docker Compose Example:**
 
@@ -196,6 +224,14 @@ services:
 ### Proxy Mode
 
 Acts as a reverse proxy, authenticating requests before forwarding to upstream service. Simplest setup for protecting dynamic applications.
+
+```mermaid
+graph LR
+    Browser -->|Request| PBA[pocketbase-auth]
+    PBA -->|Authenticated| Upstream[Upstream App<br>e.g. Fava]
+    PBA -->|Not authenticated| Login[Login Page]
+    PBA -.->|X-Auth-User<br>X-Auth-Email| Upstream
+```
 
 **Features:**
 - Automatic header injection: `X-Auth-User`, `X-Auth-Email`, `X-Auth-Groups`

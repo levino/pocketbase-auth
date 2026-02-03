@@ -4,12 +4,13 @@ Protects an nginx hello-world server with PocketBase auth using Traefik ForwardA
 
 ## Architecture
 
-```
-Browser → Traefik → ForwardAuth → auth service (Astro)
-              ↓                       ↓
-         app.localhost          auth.localhost
-              ↓
-       nginx hello world
+```mermaid
+graph LR
+    Browser -->|app.localhost| Traefik
+    Traefik -->|ForwardAuth| Auth[Auth Service<br>Astro]
+    Auth -->|200 OK| Traefik
+    Traefik -->|proxy| Nginx[nginx<br>hello world]
+    Browser -->|auth.localhost| Auth
 ```
 
 ## Setup
@@ -29,11 +30,28 @@ Browser → Traefik → ForwardAuth → auth service (Astro)
 
 ## How it works
 
-1. You visit `app.localhost`
-2. Traefik calls `auth:3000/auth/verify` (ForwardAuth)
-3. Not logged in → 401 → Traefik can redirect to login
-4. Logged in + in group → 200 → Traefik forwards to nginx
-5. nginx serves `hello.html`
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant T as Traefik
+    participant A as Auth Service
+    participant N as nginx
+
+    B->>T: GET app.localhost
+    T->>A: GET /auth/verify (ForwardAuth)
+    alt Not logged in
+        A-->>T: 401 Unauthorized
+        T-->>B: Redirect to auth.localhost/login
+        B->>A: Login via OAuth
+        A-->>B: Set cookie, redirect back
+    end
+    B->>T: GET app.localhost (with cookie)
+    T->>A: GET /auth/verify
+    A-->>T: 200 OK + X-Auth-User header
+    T->>N: Proxy request
+    N-->>T: hello.html
+    T-->>B: hello.html
+```
 
 ## Adapt for your use case
 
