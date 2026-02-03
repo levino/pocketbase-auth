@@ -1,8 +1,4 @@
 {
-	"name": "pocketbase-auth-monorepo",
-	"private": true,
-	"workspaces": [
-		"lib",
-		"middleware-demo"
-	]
+	"name": "pocketbase-auth",
+	"private": true
 }
