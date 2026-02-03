@@ -89,7 +89,9 @@ export function createApp() {
 		throw new Error("POCKETBASE_URL environment variable is required");
 	}
 	if (!groupField) {
-		throw new Error("POCKETBASE_GROUP environment variable is required");
+		console.log(
+			"POCKETBASE_GROUP not set - group membership check disabled",
+		);
 	}
 	if (authMode === "proxy" && !upstreamUrl) {
 		throw new Error(
@@ -100,7 +102,7 @@ export function createApp() {
 	const options: PocketBaseAuthOptions = {
 		pocketbaseUrl,
 		pocketbaseUrlMicrosoft: process.env.POCKETBASE_URL_MICROSOFT,
-		groupField,
+		groupField: groupField || undefined,
 		authMode,
 		upstreamUrl,
 		allowedRedirectDomains,

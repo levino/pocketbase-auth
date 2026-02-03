@@ -17,8 +17,8 @@ export interface PocketBaseAuthOptions {
 	pocketbaseUrl: string;
 	/** Optional: Separate PocketBase URL for Microsoft OAuth */
 	pocketbaseUrlMicrosoft?: string;
-	/** Name of the group field to check for authorization */
-	groupField: string;
+	/** Name of the group field to check for authorization. If not set, group check is skipped. */
+	groupField?: string;
 	/** Auth mode: static (default), forwardauth, or proxy */
 	authMode?: AuthMode;
 	/** Comma-separated list of allowed redirect domains (for forwardauth mode) */
@@ -301,6 +301,15 @@ export async function verifyAuth(
 		};
 	}
 
+	// No group check configured - authenticated is enough
+	if (!groupField) {
+		return {
+			isAuthenticated: true,
+			isAuthorized: true,
+			user: { id: user.id, email: user.email },
+		};
+	}
+
 	try {
 		const groups = await pb
 			.collection("groups")
@@ -579,7 +588,7 @@ export function createAuthMiddleware(options: PocketBaseAuthOptions) {
 			return htmlResponse(
 				generateNotAMemberPageHtml(
 					result.user.email,
-					groupField,
+					groupField || "",
 					pocketbaseUrl,
 				),
 				403,
@@ -606,13 +615,6 @@ export async function handleAuthRequest(
 			500,
 		);
 	}
-	if (!options.groupField) {
-		return htmlResponse(
-			"<h1>Configuration Error</h1><p>POCKETBASE_GROUP environment variable is not set.</p>",
-			500,
-		);
-	}
-
 	const url = new URL(request.url);
 
 	// ForwardAuth verify endpoint
