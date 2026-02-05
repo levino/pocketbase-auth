@@ -1,5 +1,6 @@
 import PocketBase from "pocketbase";
 import { defineMiddleware } from "astro:middleware";
+import authConfig from "./authConfig";
 
 export const onRequest = defineMiddleware(async (context, next) => {
 	if (context.url.pathname.startsWith("/auth/")) {
@@ -7,37 +8,36 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	}
 
 	const cookie = context.request.headers.get("cookie") || "";
-	const pb = new PocketBase(process.env.POCKETBASE_URL);
+	const pb = new PocketBase(authConfig.pocketbaseUrl);
 	pb.authStore.loadFromCookie(cookie);
 
 	if (!pb.authStore.isValid) {
-		return context.redirect("/auth/login");
+		return context.rewrite("/auth/login");
 	}
 
 	try {
 		await pb.collection("users").authRefresh();
 	} catch {
-		return context.redirect("/auth/login");
+		return context.rewrite("/auth/login");
 	}
 
 	const user = pb.authStore.record;
 	if (!user) {
-		return context.redirect("/auth/login");
-	}
-
-	if (process.env.POCKETBASE_GROUP) {
-		try {
-			const groups = await pb
-				.collection("groups")
-				.getFirstListItem(`user_id="${user.id}"`);
-			if (!groups[process.env.POCKETBASE_GROUP]) {
-				return context.redirect("/auth/access-denied");
-			}
-		} catch {
-			return context.redirect("/auth/access-denied");
-		}
+		return context.rewrite("/auth/login");
 	}
 
 	context.locals.user = user;
+
+	try {
+		const groups = await pb
+			.collection("groups")
+			.getFirstListItem(`user_id="${user.id}"`);
+		if (!groups[authConfig.pocketbaseGroup]) {
+			return context.rewrite("/auth/access-denied");
+		}
+	} catch {
+		return context.rewrite("/auth/access-denied");
+	}
+
 	return next();
 });

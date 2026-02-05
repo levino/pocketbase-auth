@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import PocketBase from "pocketbase";
+import authConfig from "../../authConfig";
 
 export const POST: APIRoute = async ({ request }) => {
 	try {
@@ -8,7 +9,7 @@ export const POST: APIRoute = async ({ request }) => {
 			return new Response("Missing token", { status: 400 });
 		}
 
-		const pb = new PocketBase(process.env.POCKETBASE_URL);
+		const pb = new PocketBase(authConfig.pocketbaseUrl);
 		pb.authStore.save(token, null);
 		const cookie = pb.authStore.exportToCookie({ sameSite: "Lax" });
 
