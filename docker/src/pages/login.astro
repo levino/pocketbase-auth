@@ -1,9 +1,9 @@
 ---
-import Layout from "../../layouts/Layout.astro";
-import GithubLoginButton from "../../components/GithubLoginButton.astro";
-import GoogleLoginButton from "../../components/GoogleLoginButton.astro";
-import MicrosoftLoginButton from "../../components/MicrosoftLoginButton.astro";
-import authConfig from "../../authConfig";
+import Layout from "../layouts/Layout.astro";
+import GithubLoginButton from "../components/GithubLoginButton.astro";
+import GoogleLoginButton from "../components/GoogleLoginButton.astro";
+import MicrosoftLoginButton from "../components/MicrosoftLoginButton.astro";
+import authConfig from "../authConfig";
 
 const isExampleConfig = authConfig.pocketbaseGroup === "example"
 Astro.response.status = 401

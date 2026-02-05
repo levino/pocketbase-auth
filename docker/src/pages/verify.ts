@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import PocketBase from "pocketbase";
-import authConfig from "../../authConfig";
+import authConfig from "../authConfig";
 
 export const GET: APIRoute = async (context) => {
 	const cookie = context.request.headers.get("cookie") || "";

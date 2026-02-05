@@ -1,6 +1,6 @@
 ---
-import Layout from "../../layouts/Layout.astro";
-import authConfig from "../../authConfig";
+import Layout from "../layouts/Layout.astro";
+import authConfig from "../authConfig";
 
 const userEmail = Astro.locals.user?.email || "Unknown";
 const subject = `Access request for group "${authConfig.pocketbaseGroup}"`;

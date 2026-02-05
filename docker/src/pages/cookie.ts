@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro"
 import PocketBase from "pocketbase"
-import authConfig from "../../authConfig"
+import authConfig from "../authConfig"
 
 export const POST: APIRoute = async (context) => {
 	try {
