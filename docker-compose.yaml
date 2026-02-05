@@ -2,8 +2,8 @@ services:
   auth:
     build: ./docker
     labels:
-      - "traefik.http.routers.https-0-${COOLIFY_RESOURCE_UUID}-auth.rule=Host(`${SERVICE_FQDN_AUTH}`) && PathPrefix(`/auth`)"
-      - "traefik.http.routers.https-0-${COOLIFY_RESOURCE_UUID}-auth.priority=100"
+      - "traefik.http.routers.https-0-kcs0w8g8w4oosossck400wwc-auth.rule=Host(`${SERVICE_FQDN_AUTH}`) && PathPrefix(`/auth`)"
+      - "traefik.http.routers.https-0-kcs0w8g8w4oosossck400wwc-auth.priority=100"
 
   app:
     build: ./example-app
