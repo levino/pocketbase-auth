@@ -12,10 +12,6 @@ services:
 
   auth:
     build: ./docker
-    environment:
-      - POCKETBASE_URL=https://api.levinkeller.de
-      - POCKETBASE_GROUP=example
-      - ADMIN_EMAIL=post@levinkeller.de
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.auth.rule=Host(`app.localhost`) && PathPrefix(`/auth`)"

@@ -1,7 +1,8 @@
 import type { APIRoute } from "astro";
 import PocketBase from "pocketbase";
+import authConfig from "../../authConfig";
 
-const loginPage = (pocketbaseUrl: string) => `<!DOCTYPE html>
+const loginPage = `<!DOCTYPE html>
 <html lang="en">
 <head>
 	<meta charset="UTF-8">
@@ -33,7 +34,7 @@ const loginPage = (pocketbaseUrl: string) => `<!DOCTYPE html>
 	</div>
 	<script type="module">
 		import PocketBase from "https://cdn.jsdelivr.net/npm/pocketbase@0.26.0/dist/pocketbase.es.mjs";
-		const pb = new PocketBase("${pocketbaseUrl}");
+		const pb = new PocketBase("${authConfig.pocketbaseUrl}");
 		async function login(provider) {
 			try {
 				await pb.collection("users").authWithOAuth2({ provider });
@@ -54,28 +55,24 @@ const loginPage = (pocketbaseUrl: string) => `<!DOCTYPE html>
 </body>
 </html>`;
 
-const accessDeniedPage = (opts: {
-	userEmail: string;
-	adminEmail: string;
-	group: string;
-	pocketbaseUrl: string;
-	appUrl: string;
-}) => {
-	const subject = encodeURIComponent(`Access request for group "${opts.group}"`);
+const accessDeniedPage = (opts: { userEmail: string; appUrl: string }) => {
+	const subject = encodeURIComponent(
+		`Access request for group "${authConfig.pocketbaseGroup}"`,
+	);
 	const body = encodeURIComponent(
 		`Hi,
 
 my name is [YOUR NAME HERE].
 
-I'd like to request access to the "${opts.group}" group.
+I'd like to request access to the "${authConfig.pocketbaseGroup}" group.
 
 App: ${opts.appUrl}
-PocketBase: ${opts.pocketbaseUrl}
+PocketBase: ${authConfig.pocketbaseUrl}
 My account email: ${opts.userEmail}
 
 Thanks!`,
 	);
-	const mailto = `mailto:${opts.adminEmail}?subject=${subject}&body=${body}`;
+	const mailto = `mailto:${authConfig.adminEmail}?subject=${subject}&body=${body}`;
 
 	return `<!DOCTYPE html>
 <html lang="en">
@@ -122,18 +119,15 @@ const authenticatedResponse = (user: Record<string, unknown> | null) =>
 	});
 
 export const GET: APIRoute = async ({ request }) => {
-	const pocketbaseUrl = process.env.POCKETBASE_URL || "";
-	const adminEmail = process.env.ADMIN_EMAIL || "";
-	const group = process.env.POCKETBASE_GROUP || "";
 	const forwardedHost = request.headers.get("x-forwarded-host") || "";
 	const forwardedProto = request.headers.get("x-forwarded-proto") || "http";
 	const appUrl = forwardedHost ? `${forwardedProto}://${forwardedHost}` : "";
 	const cookie = request.headers.get("cookie") || "";
-	const pb = new PocketBase(pocketbaseUrl);
+	const pb = new PocketBase(authConfig.pocketbaseUrl);
 	pb.authStore.loadFromCookie(cookie);
 
 	if (!pb.authStore.isValid) {
-		return new Response(loginPage(pocketbaseUrl), {
+		return new Response(loginPage, {
 			status: 401,
 			headers: { "Content-Type": "text/html" },
 		});
@@ -142,7 +136,7 @@ export const GET: APIRoute = async ({ request }) => {
 	try {
 		await pb.collection("users").authRefresh();
 	} catch {
-		return new Response(loginPage(pocketbaseUrl), {
+		return new Response(loginPage, {
 			status: 401,
 			headers: { "Content-Type": "text/html" },
 		});
@@ -150,29 +144,27 @@ export const GET: APIRoute = async ({ request }) => {
 
 	const user = pb.authStore.record;
 	if (!user) {
-		return new Response(loginPage(pocketbaseUrl), {
+		return new Response(loginPage, {
 			status: 401,
 			headers: { "Content-Type": "text/html" },
 		});
 	}
 
-	const denied = (userEmail: string) =>
-		new Response(
-			accessDeniedPage({ userEmail, adminEmail, group, pocketbaseUrl, appUrl }),
+	try {
+		const groups = await pb
+			.collection("groups")
+			.getFirstListItem(`user_id="${user.id}"`);
+		if (!groups[authConfig.pocketbaseGroup]) {
+			return new Response(
+				accessDeniedPage({ userEmail: String(user.email ?? ""), appUrl }),
+				{ status: 403, headers: { "Content-Type": "text/html" } },
+			);
+		}
+	} catch {
+		return new Response(
+			accessDeniedPage({ userEmail: String(user.email ?? ""), appUrl }),
 			{ status: 403, headers: { "Content-Type": "text/html" } },
 		);
-
-	if (group) {
-		try {
-			const groups = await pb
-				.collection("groups")
-				.getFirstListItem(`user_id="${user.id}"`);
-			if (!groups[group]) {
-				return denied(String(user.email ?? ""));
-			}
-		} catch {
-			return denied(String(user.email ?? ""));
-		}
 	}
 
 	return authenticatedResponse(user);

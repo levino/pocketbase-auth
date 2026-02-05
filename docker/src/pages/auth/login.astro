@@ -1,6 +1,5 @@
 ---
-const pocketbaseUrl = process.env.POCKETBASE_URL;
-const redirectUrl = Astro.url.searchParams.get("rd") || "/";
+import authConfig from "../../authConfig";
 ---
 
 <!doctype html>
@@ -34,7 +33,7 @@ const redirectUrl = Astro.url.searchParams.get("rd") || "/";
 			</div>
 		</div>
 
-		<script is:inline define:vars={{ pocketbaseUrl, redirectUrl }}>
+		<script is:inline define:vars={{ pocketbaseUrl: authConfig.pocketbaseUrl }}>
 			import PocketBase from "https://cdn.jsdelivr.net/npm/pocketbase@0.26.0/dist/pocketbase.es.mjs";
 
 			const pb = new PocketBase(pocketbaseUrl);
@@ -47,7 +46,11 @@ const redirectUrl = Astro.url.searchParams.get("rd") || "/";
 						headers: { "Content-Type": "application/json" },
 						body: JSON.stringify({ token: pb.authStore.token }),
 					});
-					window.location.href = redirectUrl;
+					if (window.location.pathname.startsWith("/auth/")) {
+						window.location.href = "/";
+					} else {
+						window.location.reload();
+					}
 				} catch (err) {
 					console.error("Login failed:", err);
 					alert("Login failed. Please try again.");
