@@ -1,1 +1,0 @@
-../../../templates/astro-pages/src/middleware.ts

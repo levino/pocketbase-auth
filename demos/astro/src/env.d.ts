@@ -1,1 +1,0 @@
-../../../templates/astro-pages/src/env.d.ts

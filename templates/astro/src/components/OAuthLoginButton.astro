@@ -13,7 +13,10 @@ const { provider, label, config } = Astro.props
 	data-pocketbase-url={config.pocketbaseUrl}
 	data-redirect-url={config.redirectUrl}
 >
-	<button class="btn btn-primary">{label}</button>
+	<button class="btn btn-outline btn-block gap-3 justify-start font-medium">
+		<slot />
+		{label}
+	</button>
 </oauth-login-button>
 
 <script>
@@ -24,6 +27,8 @@ const { provider, label, config } = Astro.props
 			const { provider, pocketbaseUrl, redirectUrl } = this.dataset;
 			const button = this.querySelector("button");
 			button!.addEventListener("click", async () => {
+				button!.classList.add("loading", "loading-spinner");
+				button!.setAttribute("disabled", "true");
 				try {
 					const pb = new PocketBase(pocketbaseUrl);
 					await pb
@@ -37,7 +42,8 @@ const { provider, label, config } = Astro.props
 					window.location.href = redirectUrl!;
 				} catch (err) {
 					console.error("Login failed:", err);
-					alert("Login failed. Please try again.");
+					button!.classList.remove("loading", "loading-spinner");
+					button!.removeAttribute("disabled");
 				}
 			});
 		}

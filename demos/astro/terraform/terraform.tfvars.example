@@ -1,4 +1,0 @@
-account_id     = "your-cloudflare-account-id"
-zone_id        = "your-cloudflare-zone-id-for-levinkeller-de"
-github_repo    = "levino/pocketbase-auth"
-pocketbase_url = "https://api.levinkeller.de"

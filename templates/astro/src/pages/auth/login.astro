@@ -1,0 +1,42 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import GithubLoginButton from "../../components/GithubLoginButton.astro";
+import GoogleLoginButton from "../../components/GoogleLoginButton.astro";
+import MicrosoftLoginButton from "../../components/MicrosoftLoginButton.astro";
+import authConfig from "../../authConfig";
+
+const config = {
+	pocketbaseUrl: authConfig.pocketbaseUrl,
+	redirectUrl: Astro.url.searchParams.get("redirectUrl") || "/",
+}
+const isExampleConfig = authConfig.pocketbaseGroup === "example"
+---
+
+<Layout title="Sign in">
+	<div class="flex flex-col items-center gap-4 w-full max-w-sm px-4">
+		{isExampleConfig && (
+			<div role="alert" class="alert alert-warning text-sm">
+				<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+				</svg>
+				<span>Change <code class="badge badge-ghost badge-sm font-mono">pocketbaseGroup</code> in <code class="badge badge-ghost badge-sm font-mono">authConfig.ts</code> before deploying.</span>
+			</div>
+		)}
+		<div class="card bg-base-100 shadow-xl w-full">
+			<div class="card-body gap-6">
+				<div class="text-center">
+					<h1 class="text-2xl font-bold">Sign in</h1>
+					<p class="text-base-content/50 mt-1 text-sm">Choose a provider to continue</p>
+				</div>
+				<div class="flex flex-col gap-3">
+					<GithubLoginButton config={config} />
+					<GoogleLoginButton config={config} />
+					<MicrosoftLoginButton config={config} />
+				</div>
+			</div>
+		</div>
+		<p class="text-base-content/40 text-xs text-center">
+			Secured by PocketBase
+		</p>
+	</div>
+</Layout>

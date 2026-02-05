@@ -1,0 +1,15 @@
+name = "pocketbase-auth-demo"
+main = "./dist/_worker.js/index.js"
+compatibility_date = "2026-02-05"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+binding = "ASSETS"
+directory = "./dist"
+
+[observability]
+enabled = true
+
+[vars]
+POCKETBASE_URL = "https://api.levinkeller.de"
+POCKETBASE_GROUP = "members"
