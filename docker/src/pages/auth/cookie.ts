@@ -5,7 +5,6 @@ import authConfig from "../../authConfig"
 export const POST: APIRoute = async (context) => {
 	try {
 		const { token } = await context.request.json()
-		console.log("[auth/cookie] Received token:", token ? `${token.slice(0, 20)}...` : "NONE")
 		if (!token) {
 			return new Response("Missing token", { status: 400 })
 		}
@@ -16,7 +15,6 @@ export const POST: APIRoute = async (context) => {
 			sameSite: "Lax",
 			secure: true,
 		})
-		console.log("[auth/cookie] Set-Cookie header:", cookie.slice(0, 80) + "...")
 
 		return new Response("OK", {
 			status: 200,
