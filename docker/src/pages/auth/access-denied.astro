@@ -16,6 +16,7 @@ My account email: ${userEmail}
 
 Thanks!`;
 const mailto = `mailto:${authConfig.adminEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+Astro.response.status = 403
 ---
 
 <Layout title="Access Denied">

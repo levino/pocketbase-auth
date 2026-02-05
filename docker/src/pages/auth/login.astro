@@ -6,6 +6,7 @@ import MicrosoftLoginButton from "../../components/MicrosoftLoginButton.astro";
 import authConfig from "../../authConfig";
 
 const isExampleConfig = authConfig.pocketbaseGroup === "example"
+Astro.response.status = 401
 ---
 
 <Layout title="Sign in">
