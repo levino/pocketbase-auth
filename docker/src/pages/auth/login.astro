@@ -1,65 +1,38 @@
 ---
+import Layout from "../../layouts/Layout.astro";
+import GithubLoginButton from "../../components/GithubLoginButton.astro";
+import GoogleLoginButton from "../../components/GoogleLoginButton.astro";
+import MicrosoftLoginButton from "../../components/MicrosoftLoginButton.astro";
 import authConfig from "../../authConfig";
+
+const isExampleConfig = authConfig.pocketbaseGroup === "example"
 ---
 
-<!doctype html>
-<html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>Login</title>
-		<style>
-			* { box-sizing: border-box; margin: 0; padding: 0; }
-			body { font-family: system-ui, sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f5f5f5; }
-			.container { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 400px; width: 100%; }
-			h1 { margin-bottom: 1rem; }
-			p { color: #666; margin-bottom: 1.5rem; }
-			.buttons { display: flex; flex-direction: column; gap: 0.75rem; }
-			button { padding: 0.75rem 1rem; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; transition: opacity 0.2s; }
-			button:hover { opacity: 0.9; }
-			.github { background: #24292e; color: white; }
-			.google { background: #4285f4; color: white; }
-			.microsoft { background: #00a4ef; color: white; }
-		</style>
-	</head>
-	<body>
-		<div class="container">
-			<h1>Login</h1>
-			<p>Please sign in to continue.</p>
-			<div class="buttons">
-				<button class="github" id="loginGithub">Continue with GitHub</button>
-				<button class="google" id="loginGoogle">Continue with Google</button>
-				<button class="microsoft" id="loginMicrosoft">Continue with Microsoft</button>
+<Layout title="Sign in">
+	<div class="flex flex-col items-center gap-4 w-full max-w-sm px-4">
+		{isExampleConfig && (
+			<div role="alert" class="alert alert-warning text-sm">
+				<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+				</svg>
+				<span>Change <code class="badge badge-ghost badge-sm font-mono">pocketbaseGroup</code> in <code class="badge badge-ghost badge-sm font-mono">authConfig.ts</code> before deploying.</span>
+			</div>
+		)}
+		<div class="card bg-base-100 shadow-xl w-full">
+			<div class="card-body gap-6">
+				<div class="text-center">
+					<h1 class="text-2xl font-bold">Sign in</h1>
+					<p class="text-base-content/50 mt-1 text-sm">Choose a provider to continue</p>
+				</div>
+				<div class="flex flex-col gap-3">
+					<GithubLoginButton pocketbaseUrl={authConfig.pocketbaseUrl} />
+					<GoogleLoginButton pocketbaseUrl={authConfig.pocketbaseUrl} />
+					<MicrosoftLoginButton pocketbaseUrl={authConfig.pocketbaseUrl} />
+				</div>
 			</div>
 		</div>
-
-		<script is:inline define:vars={{ pocketbaseUrl: authConfig.pocketbaseUrl }}>
-			import PocketBase from "https://cdn.jsdelivr.net/npm/pocketbase@0.26.0/dist/pocketbase.es.mjs";
-
-			const pb = new PocketBase(pocketbaseUrl);
-
-			async function login(provider) {
-				try {
-					await pb.collection("users").authWithOAuth2({ provider });
-					await fetch("/auth/cookie", {
-						method: "POST",
-						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify({ token: pb.authStore.token }),
-					});
-					if (window.location.pathname.startsWith("/auth/")) {
-						window.location.href = "/";
-					} else {
-						window.location.reload();
-					}
-				} catch (err) {
-					console.error("Login failed:", err);
-					alert("Login failed. Please try again.");
-				}
-			}
-
-			document.getElementById("loginGithub").onclick = () => login("github");
-			document.getElementById("loginGoogle").onclick = () => login("google");
-			document.getElementById("loginMicrosoft").onclick = () => login("microsoft");
-		</script>
-	</body>
-</html>
+		<p class="text-base-content/40 text-xs text-center">
+			Secured by PocketBase
+		</p>
+	</div>
+</Layout>

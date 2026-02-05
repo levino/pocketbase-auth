@@ -5,6 +5,7 @@ export const POST: APIRoute = () =>
 		status: 302,
 		headers: {
 			Location: "/",
-			"Set-Cookie": "pb_auth=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0",
+			"Set-Cookie":
+				"pb_auth=; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=0",
 		},
 	});
