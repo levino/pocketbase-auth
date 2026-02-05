@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 
-const logout = () =>
+export const POST: APIRoute = () =>
 	new Response(null, {
 		status: 302,
 		headers: {
@@ -8,6 +8,3 @@ const logout = () =>
 			"Set-Cookie": "pb_auth=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0",
 		},
 	});
-
-export const GET: APIRoute = logout;
-export const POST: APIRoute = logout;
