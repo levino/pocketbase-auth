@@ -3,7 +3,7 @@ import { defineMiddleware } from "astro:middleware"
 import authConfig from "./authConfig"
 
 export const onRequest = defineMiddleware(async (context, next) => {
-	const publicPaths = ["/auth/login", "/auth/access-denied", "/auth/cookie", "/auth/logout", "/auth/verify"]
+	const publicPaths = ["/auth/login", "/auth/access-denied", "/auth/cookie", "/auth/logout", "/auth/verify", "/auth/_astro"]
 	if (publicPaths.some(p => context.url.pathname.startsWith(p))) {
 		return next()
 	}

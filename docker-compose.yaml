@@ -2,7 +2,7 @@ services:
   auth:
     build: ./docker
     labels:
-      - "traefik.http.routers.auth.rule=Host(`${SERVICE_FQDN_APP}`) && PathPrefix(`/auth`)"
+      - "traefik.http.routers.auth.rule=Host(`${SERVICE_FQDN_AUTH}`) && PathPrefix(`/auth`)"
       - "traefik.http.routers.auth.priority=100"
 
   app:
