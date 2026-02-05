@@ -1,10 +1,10 @@
 ---
 import OAuthLoginButton from "./OAuthLoginButton.astro";
 
-const { config } = Astro.props
+const { pocketbaseUrl } = Astro.props
 ---
 
-<OAuthLoginButton provider="microsoft" label="Continue with Microsoft" config={config}>
+<OAuthLoginButton provider="microsoft" label="Continue with Microsoft" pocketbaseUrl={pocketbaseUrl}>
 	<svg class="w-5 h-5" viewBox="0 0 24 24">
 		<rect x="1" y="1" width="10" height="10" fill="#F25022" />
 		<rect x="13" y="1" width="10" height="10" fill="#7FBA00" />

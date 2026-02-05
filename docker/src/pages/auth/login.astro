@@ -1,5 +1,5 @@
 ---
-const pocketbaseUrl = import.meta.env.POCKETBASE_URL;
+const pocketbaseUrl = process.env.POCKETBASE_URL;
 const redirectUrl = Astro.url.searchParams.get("rd") || "/";
 ---
 
@@ -42,8 +42,7 @@ const redirectUrl = Astro.url.searchParams.get("rd") || "/";
 			async function login(provider) {
 				try {
 					await pb.collection("users").authWithOAuth2({ provider });
-					// Store token as HTTP-only cookie via API
-					await fetch("/public/auth/cookie", {
+					await fetch("/auth/cookie", {
 						method: "POST",
 						headers: { "Content-Type": "application/json" },
 						body: JSON.stringify({ token: pb.authStore.token }),

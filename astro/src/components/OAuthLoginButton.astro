@@ -2,16 +2,15 @@
 interface Props {
 	provider: string
 	label: string
-	config: { pocketbaseUrl: string; redirectUrl: string }
+	pocketbaseUrl: string
 }
 
-const { provider, label, config } = Astro.props
+const { provider, label, pocketbaseUrl } = Astro.props
 ---
 
 <oauth-login-button
 	data-provider={provider}
-	data-pocketbase-url={config.pocketbaseUrl}
-	data-redirect-url={config.redirectUrl}
+	data-pocketbase-url={pocketbaseUrl}
 >
 	<button class="btn btn-outline btn-block gap-3 justify-start font-medium">
 		<slot />
@@ -24,7 +23,7 @@ const { provider, label, config } = Astro.props
 
 	class OAuthLoginButton extends HTMLElement {
 		connectedCallback() {
-			const { provider, pocketbaseUrl, redirectUrl } = this.dataset;
+			const { provider, pocketbaseUrl } = this.dataset;
 			const button = this.querySelector("button");
 			button!.addEventListener("click", async () => {
 				button!.classList.add("loading", "loading-spinner");
@@ -39,7 +38,11 @@ const { provider, label, config } = Astro.props
 						headers: { "Content-Type": "application/json" },
 						body: JSON.stringify({ token: pb.authStore.token }),
 					});
-					window.location.href = redirectUrl!;
+					if (window.location.pathname.startsWith("/auth/")) {
+						window.location.href = "/";
+					} else {
+						window.location.reload();
+					}
 				} catch (err) {
 					console.error("Login failed:", err);
 					button!.classList.remove("loading", "loading-spinner");

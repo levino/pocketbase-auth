@@ -1,7 +1,21 @@
 ---
 import Layout from "../../layouts/Layout.astro";
+import authConfig from "../../authConfig";
 
 const userEmail = Astro.locals.user?.email || "Unknown";
+const subject = `Access request for group "${authConfig.pocketbaseGroup}"`;
+const body = `Hi,
+
+my name is [YOUR NAME HERE].
+
+I'd like to request access to the "${authConfig.pocketbaseGroup}" group.
+
+App: ${Astro.url.origin}
+PocketBase: ${authConfig.pocketbaseUrl}
+My account email: ${userEmail}
+
+Thanks!`;
+const mailto = `mailto:${authConfig.adminEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 ---
 
 <Layout title="Access Denied">
@@ -22,7 +36,8 @@ const userEmail = Astro.locals.user?.email || "Unknown";
 					<p>Signed in as <span class="badge badge-ghost font-mono text-xs">{userEmail}</span></p>
 					<p class="mt-1">Contact the administrator to request access.</p>
 				</div>
-				<form action="/auth/logout" method="POST" class="w-full mt-2">
+				<a href={mailto} class="btn btn-primary btn-block mt-2">Request access via email</a>
+				<form action="/auth/logout" method="POST" class="w-full">
 					<button type="submit" class="btn btn-error btn-outline btn-block">Sign out</button>
 				</form>
 			</div>

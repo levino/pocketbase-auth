@@ -9,7 +9,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
 	const cookie = context.request.headers.get("cookie")
 	if (!cookie) {
-		return context.redirect("/auth/login")
+		return context.rewrite("/auth/login")
 	}
 
 	const pb = new PocketBase(authConfig.pocketbaseUrl)
@@ -18,25 +18,26 @@ export const onRequest = defineMiddleware(async (context, next) => {
 	try {
 		await pb.collection("users").authRefresh()
 	} catch {
-		return context.redirect("/auth/login")
+		return context.rewrite("/auth/login")
 	}
 
 	const user = pb.authStore.record
 	if (!user) {
-		return context.redirect("/auth/login")
+		return context.rewrite("/auth/login")
 	}
+
+	context.locals.user = user
 
 	try {
 		const groups = await pb
 			.collection("groups")
 			.getFirstListItem(`user_id="${user.id}"`)
 		if (!groups[authConfig.pocketbaseGroup]) {
-			return context.redirect("/auth/access-denied")
+			return context.rewrite("/auth/access-denied")
 		}
 	} catch {
-		return context.redirect("/auth/access-denied")
+		return context.rewrite("/auth/access-denied")
 	}
 
-	context.locals.user = user
 	return next()
 })

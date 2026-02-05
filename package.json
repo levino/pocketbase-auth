@@ -2,8 +2,8 @@
 	"name": "pocketbase-auth",
 	"private": true,
 	"workspaces": [
-		"templates/*",
-		"demos/*"
+		"astro",
+		"docker"
 	],
 	"devDependencies": {
 		"@biomejs/biome": "^2.3.13"
