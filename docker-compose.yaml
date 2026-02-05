@@ -2,13 +2,8 @@ services:
   auth:
     build: ./docker
     labels:
-      - "traefik.http.routers.auth-pathprefix.rule=Host(`${SERVICE_FQDN_AUTH}`) && PathPrefix(`/auth`)"
-      - "traefik.http.routers.auth-pathprefix.priority=1000"
-      - "traefik.http.routers.auth-pathprefix.entryPoints=https"
-      - "traefik.http.routers.auth-pathprefix.tls=true"
-      - "traefik.http.routers.auth-pathprefix.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.auth-pathprefix.service=auth-svc"
-      - "traefik.http.services.auth-svc.loadbalancer.server.port=3000"
+      - "traefik.http.routers.auth.rule=Host(`${SERVICE_FQDN_AUTH}`) && PathPrefix(`/auth`)"
+      - "traefik.http.routers.auth.priority=100"
 
   app:
     build: ./example-app
