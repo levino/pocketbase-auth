@@ -22,9 +22,9 @@ const html = (user, email) => `<!DOCTYPE html>
     <h1>My App</h1>
     <dl>
       <dt>X-Auth-User</dt>
-      <dd>${user || "–"}</dd>
+      <dd>${user || "-"}</dd>
       <dt>X-Auth-Email</dt>
-      <dd>${email || "–"}</dd>
+      <dd>${email || "-"}</dd>
     </dl>
     <p>This app has zero auth logic. Traefik ForwardAuth handles everything.</p>
     <form action="/auth/logout" method="POST">
@@ -37,7 +37,7 @@ const html = (user, email) => `<!DOCTYPE html>
 createServer((req, res) => {
   const user = req.headers["x-auth-user"]
   const email = req.headers["x-auth-email"]
-  res.writeHead(200, { "Content-Type": "text/html" })
+  res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
   res.end(html(user, email))
 }).listen(port, () => {
   console.log(`App listening on port ${port}`)

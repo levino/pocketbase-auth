@@ -1,9 +1,12 @@
 services:
   auth:
     build: ./docker
+    networks:
+      - coolify
+      - default
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.auth.rule=Host(`app.example.com`) && PathPrefix(`/auth`)"
+      - "traefik.http.routers.auth.rule=Host(`pocketbase-auth.levinkeller.de`) && PathPrefix(`/auth`)"
       - "traefik.http.routers.auth.priority=100"
       - "traefik.http.routers.auth.entrypoints=https"
       - "traefik.http.routers.auth.tls=true"
@@ -13,10 +16,17 @@ services:
 
   app:
     build: ./example-app
+    networks:
+      - coolify
+      - default
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.app.rule=Host(`app.example.com`)"
+      - "traefik.http.routers.app.rule=Host(`pocketbase-auth.levinkeller.de`)"
       - "traefik.http.routers.app.entrypoints=https"
       - "traefik.http.routers.app.tls=true"
       - "traefik.http.routers.app.middlewares=pb-auth@docker"
       - "traefik.http.services.app.loadbalancer.server.port=3000"
+
+networks:
+  coolify:
+    external: true
