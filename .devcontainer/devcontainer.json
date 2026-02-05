@@ -9,6 +9,7 @@
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {}
 	},
 	"updateContentCommand": "npm install",
+	"postCreateCommand": "curl -fsSL https://claude.ai/install.sh | bash",
 	"customizations": {
 		"vscode": {
 			"extensions": [

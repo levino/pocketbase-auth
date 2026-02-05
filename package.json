@@ -1,8 +1,11 @@
 {
-	"name": "pocketbase-auth-monorepo",
+	"name": "pocketbase-auth",
 	"private": true,
 	"workspaces": [
-		"lib",
-		"middleware-demo"
-	]
+		"astro",
+		"docker"
+	],
+	"devDependencies": {
+		"@biomejs/biome": "^2.3.13"
+	}
 }

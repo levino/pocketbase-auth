@@ -1,0 +1,21 @@
+{
+	"name": "astro-app-with-pocketbase-auth",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "astro dev --host",
+		"build": "astro build",
+		"deploy": "astro build && wrangler deploy"
+	},
+	"dependencies": {
+		"@astrojs/cloudflare": "^12.0.0",
+		"@tailwindcss/vite": "^4.1.0",
+		"astro": "^5.0.0",
+		"daisyui": "^5.5.17",
+		"pocketbase": "^0.26.0",
+		"tailwindcss": "^4.1.0"
+	},
+	"devDependencies": {
+		"wrangler": "^4.0.0"
+	}
+}
