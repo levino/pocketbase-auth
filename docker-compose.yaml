@@ -1,32 +1,16 @@
 services:
   auth:
     build: ./docker
-    networks:
-      - coolify
-      - default
+    expose:
+      - "3000"
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.auth.rule=Host(`pocketbase-auth.levinkeller.de`) && PathPrefix(`/auth`)"
+      - "traefik.http.routers.auth.rule=PathPrefix(`/auth`)"
       - "traefik.http.routers.auth.priority=100"
-      - "traefik.http.routers.auth.entrypoints=https"
-      - "traefik.http.routers.auth.tls=true"
-      - "traefik.http.services.auth.loadbalancer.server.port=3000"
-      - "traefik.http.middlewares.pb-auth.forwardauth.address=http://auth:3000/auth/verify"
-      - "traefik.http.middlewares.pb-auth.forwardauth.authResponseHeaders=X-Auth-User,X-Auth-Email"
 
   app:
     build: ./example-app
-    networks:
-      - coolify
-      - default
+    expose:
+      - "3000"
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.app.rule=Host(`pocketbase-auth.levinkeller.de`)"
-      - "traefik.http.routers.app.entrypoints=https"
-      - "traefik.http.routers.app.tls=true"
-      - "traefik.http.routers.app.middlewares=pb-auth@docker"
-      - "traefik.http.services.app.loadbalancer.server.port=3000"
-
-networks:
-  coolify:
-    external: true
+      - "traefik.http.middlewares.pb-auth.forwardauth.address=http://auth:3000/auth/verify"
+      - "traefik.http.middlewares.pb-auth.forwardauth.authResponseHeaders=X-Auth-User,X-Auth-Email"
