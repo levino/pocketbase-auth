@@ -3,14 +3,20 @@ services:
     build: ./docker
     expose:
       - "3000"
+    environment:
+      - SERVICE_FQDN_AUTH
     labels:
-      - "traefik.http.routers.auth.rule=PathPrefix(`/auth`)"
+      - "traefik.http.routers.auth.rule=Host(`${SERVICE_FQDN_AUTH}`) && PathPrefix(`/auth`)"
       - "traefik.http.routers.auth.priority=100"
 
   app:
     build: ./example-app
     expose:
       - "3000"
+    environment:
+      - SERVICE_FQDN_APP
     labels:
+      - "traefik.http.routers.app.rule=Host(`${SERVICE_FQDN_APP}`)"
       - "traefik.http.middlewares.pb-auth.forwardauth.address=http://auth:3000/auth/verify"
       - "traefik.http.middlewares.pb-auth.forwardauth.authResponseHeaders=X-Auth-User,X-Auth-Email"
+      - "traefik.http.routers.app.middlewares=pb-auth@docker"
