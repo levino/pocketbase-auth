@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: auth
+  template:
+    metadata:
+      labels:
+        app: auth
+    spec:
+      containers:
+      - name: auth
+        image: ghcr.io/levino/pocketbase-auth-auth
+        ports:
+        - containerPort: 3000
+        envFrom:
+        - secretRef:
+            name: auth-env
+        env:
+        - name: HOST
+          value: 0.0.0.0
+      enableServiceLinks: false
+      imagePullSecrets:
+        - name: ghcr-pull
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth
+spec:
+  selector:
+    app: auth
+  ports:
+  - name: p3000
+    port: 3000
+    targetPort: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: app
+  template:
+    metadata:
+      labels:
+        app: app
+    spec:
+      containers:
+      - name: app
+        image: ghcr.io/levino/pocketbase-auth-app
+        ports:
+        - containerPort: 3000
+        envFrom:
+        - secretRef:
+            name: app-env
+        env:
+        - name: HOST
+          value: 0.0.0.0
+      enableServiceLinks: false
+      imagePullSecrets:
+        - name: ghcr-pull
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+spec:
+  selector:
+    app: app
+  ports:
+  - name: p3000
+    port: 3000
+    targetPort: 3000
