@@ -31,7 +31,8 @@ jobs:
         run: |
           npm install --no-audit --no-fund
           npm run build
-          npm prune --omit=dev
+          # Keep the full node_modules: astro's SSR chunks import transitive
+          # packages (e.g. piccolore) that `npm prune --omit=dev` threw away.
       - name: Assemble production-dist (auth/ + app/)
         run: |
           mkdir -p dist/auth dist/app
