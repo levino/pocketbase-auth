@@ -3,7 +3,9 @@
 # which the deploy job writes after every build: main's tree plus the pinned
 # image tag(s) below. Humans never push to `production`.
 #
-# The tag is the commit SHA of the running build. Never `latest`.
+# No image to pin: pods run public node images and clone the branch
+# `production-dist` (auth/ + app/) at start; the pin is the annotation
+# `levinkeller.de/dist-commit` in workloads.yaml.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: pocketbase-auth
@@ -12,8 +14,3 @@ resources:
   - ingress.yaml
   - sealed-app-env.yaml
   - sealed-auth-env.yaml
-images:
-  - name: ghcr.io/levino/pocketbase-auth-auth
-    newTag: "0000000000000000000000000000000000000000"
-  - name: ghcr.io/levino/pocketbase-auth-app
-    newTag: "0000000000000000000000000000000000000000"

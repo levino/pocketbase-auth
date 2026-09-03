@@ -1,3 +1,9 @@
+# pocketbase-auth (the showcase): both containers are built by CI and published
+# as the branch `production-dist` (auth/ = the Astro auth layer with its
+# production node_modules, app/ = the example app); each pod clones that branch
+# at start via the GitHub App token and a public node image runs it. The
+# annotation `levinkeller.de/dist-commit` is rewritten on every publish, which
+# is what restarts the pods. No image, no registry.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -14,10 +20,40 @@ spec:
     metadata:
       labels:
         app: auth
+      annotations:
+        levinkeller.de/dist-commit: "0000000000000000000000000000000000000000"
     spec:
+      enableServiceLinks: false
+      initContainers:
+      - name: fetch-dist
+        image: alpine/git:2.47.2
+        env:
+        - name: REPO
+          value: "levino/pocketbase-auth"
+        - name: TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: github-app-token
+              key: token
+              optional: true
+        command: ["sh", "-ec"]
+        args:
+          - |
+            if [ -n "${TOKEN:-}" ]; then U="https://x-access-token:${TOKEN}@github.com/${REPO}"; else U="https://github.com/${REPO}"; fi
+            git clone --quiet --depth 1 --branch production-dist "$U" /dist
+            rm -rf /dist/.git
+            echo "dist $(cat /dist/.dist-commit 2>/dev/null || echo ?)"
+        volumeMounts:
+        - name: dist
+          mountPath: /dist
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities: { drop: ["ALL"] }
       containers:
       - name: auth
-        image: ghcr.io/levino/pocketbase-auth-auth
+        image: node:22-alpine
+        workingDir: /dist/auth
+        command: ["node", "./dist/server/entry.mjs"]
         ports:
         - containerPort: 3000
         envFrom:
@@ -26,9 +62,18 @@ spec:
         env:
         - name: HOST
           value: 0.0.0.0
-      enableServiceLinks: false
-      imagePullSecrets:
-        - name: ghcr-pull
+        - name: PORT
+          value: '3000'
+        volumeMounts:
+        - name: dist
+          mountPath: /dist
+        readinessProbe:
+          tcpSocket: { port: 3000 }
+          initialDelaySeconds: 3
+          periodSeconds: 5
+      volumes:
+      - name: dist
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -58,10 +103,40 @@ spec:
     metadata:
       labels:
         app: app
+      annotations:
+        levinkeller.de/dist-commit: "0000000000000000000000000000000000000000"
     spec:
+      enableServiceLinks: false
+      initContainers:
+      - name: fetch-dist
+        image: alpine/git:2.47.2
+        env:
+        - name: REPO
+          value: "levino/pocketbase-auth"
+        - name: TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: github-app-token
+              key: token
+              optional: true
+        command: ["sh", "-ec"]
+        args:
+          - |
+            if [ -n "${TOKEN:-}" ]; then U="https://x-access-token:${TOKEN}@github.com/${REPO}"; else U="https://github.com/${REPO}"; fi
+            git clone --quiet --depth 1 --branch production-dist "$U" /dist
+            rm -rf /dist/.git
+            echo "dist $(cat /dist/.dist-commit 2>/dev/null || echo ?)"
+        volumeMounts:
+        - name: dist
+          mountPath: /dist
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities: { drop: ["ALL"] }
       containers:
       - name: app
-        image: ghcr.io/levino/pocketbase-auth-app
+        image: node:22-alpine
+        workingDir: /dist/app
+        command: ["node", "server.mjs"]
         ports:
         - containerPort: 3000
         envFrom:
@@ -70,9 +145,18 @@ spec:
         env:
         - name: HOST
           value: 0.0.0.0
-      enableServiceLinks: false
-      imagePullSecrets:
-        - name: ghcr-pull
+        - name: PORT
+          value: '3000'
+        volumeMounts:
+        - name: dist
+          mountPath: /dist
+        readinessProbe:
+          tcpSocket: { port: 3000 }
+          initialDelaySeconds: 3
+          periodSeconds: 5
+      volumes:
+      - name: dist
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
