@@ -34,9 +34,13 @@ jobs:
           # Keep the full node_modules: astro's SSR chunks import transitive
           # packages (e.g. piccolore) that `npm prune --omit=dev` threw away.
       - name: Assemble production-dist (auth/ + app/)
+        # docker/ is an npm workspace: its dependencies get hoisted into the
+        # ROOT node_modules, so docker/node_modules is nearly empty. Install
+        # the runtime dependencies standalone next to the build instead.
         run: |
           mkdir -p dist/auth dist/app
-          cp -r docker/dist docker/node_modules docker/package.json dist/auth/
+          cp -r docker/dist docker/package.json dist/auth/
+          (cd dist/auth && npm install --omit=dev --no-audit --no-fund --no-package-lock)
           cp example-app/server.mjs example-app/package.json dist/app/
       - name: Publish it as the orphan branch `production-dist`
         id: dist
