@@ -1,0 +1,85 @@
+# Abhaengigkeiten automatisch aktualisieren. Patch- und Minor-Updates mergt
+# automerge.yml von selbst, sobald die Checks gruen sind; Major-Updates bleiben
+# als PR liegen (Label `major`). Kein Token ausserhalb von GitHub.
+version: 2
+updates:
+- package-ecosystem: github-actions
+  directory: /
+  schedule:
+    interval: daily
+    time: 04:00
+    timezone: Europe/Berlin
+  labels:
+  - dependencies
+  open-pull-requests-limit: 10
+- package-ecosystem: npm
+  directory: /
+  schedule:
+    interval: daily
+    time: 04:00
+    timezone: Europe/Berlin
+  labels:
+  - dependencies
+  open-pull-requests-limit: 10
+  groups: &id001
+    minor-and-patch:
+      update-types:
+      - minor
+      - patch
+- package-ecosystem: npm
+  directory: /astro
+  schedule:
+    interval: daily
+    time: 04:00
+    timezone: Europe/Berlin
+  labels:
+  - dependencies
+  open-pull-requests-limit: 10
+  groups: *id001
+- package-ecosystem: npm
+  directory: /docker
+  schedule:
+    interval: daily
+    time: 04:00
+    timezone: Europe/Berlin
+  labels:
+  - dependencies
+  open-pull-requests-limit: 10
+  groups: *id001
+- package-ecosystem: npm
+  directory: /example-app
+  schedule:
+    interval: daily
+    time: 04:00
+    timezone: Europe/Berlin
+  labels:
+  - dependencies
+  open-pull-requests-limit: 10
+  groups: *id001
+- package-ecosystem: docker
+  directory: /docker
+  schedule:
+    interval: daily
+    time: 04:00
+    timezone: Europe/Berlin
+  labels:
+  - dependencies
+  open-pull-requests-limit: 10
+- package-ecosystem: docker
+  directory: /example-app
+  schedule:
+    interval: daily
+    time: 04:00
+    timezone: Europe/Berlin
+  labels:
+  - dependencies
+  open-pull-requests-limit: 10
+- package-ecosystem: devcontainers
+  directory: /
+  schedule:
+    interval: daily
+    time: 04:00
+    timezone: Europe/Berlin
+  labels:
+  - dependencies
+  open-pull-requests-limit: 10
