@@ -1,70 +1,60 @@
 name: Deploy
 
-# Push to main -> build the image(s) on a native ARM runner -> push :<sha> to
-# GHCR -> pin deploy/overlays/production to that tag -> publish "main's tree +
-# pin" to the branch `production`. Argo CD on the cluster tracks `production`.
-# CI never talks to the cluster; the cluster pulls with its GitHub App.
+# Push to main -> build the auth layer and the example app -> publish both as
+# the orphan branch `production-dist` (auth/, app/) -> pin
+# deploy/overlays/production to that commit -> publish "main's tree + pin" to
+# the branch `production`. Argo CD tracks `production`; the pods clone
+# `production-dist` at start and run it on a public node image.
+#
+# No container image, no registry: the cluster may only use the GitHub App,
+# and GHCR does not let an App installation read private packages. Git it can.
 on:
   push:
     branches: [main]
 
-jobs:
-  build:
-    runs-on: ubuntu-24.04-arm
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      matrix:
-        include:
-          - image: ghcr.io/levino/pocketbase-auth-auth
-            context: ./docker
-            dockerfile: Dockerfile
-          - image: ghcr.io/levino/pocketbase-auth-app
-            context: ./example-app
-            dockerfile: Dockerfile
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
-        with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.context }}/${{ matrix.dockerfile }}
-          platforms: linux/arm64
-          push: true
-          provenance: false
-          # Immutable tag only. `latest` would let a node run something that
-          # git cannot name.
-          tags: ${{ matrix.image }}:${{ github.sha }}
-          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
-          cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: type=gha,scope=${{ matrix.image }},mode=max
+concurrency:
+  group: deploy
+  cancel-in-progress: false
 
-  deploy:
-    needs: build
+jobs:
+  build-and-publish:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          ref: ${{ github.sha }}
-      - name: Install kustomize
-        run: curl -sSL https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.4.3/kustomize_v5.4.3_linux_amd64.tar.gz | sudo tar xz -C /usr/local/bin
-      - name: Pin the overlay to the freshly built :<sha>
-        working-directory: deploy/overlays/production
+          node-version: 22
+      - name: Build the auth layer (astro, node adapter standalone)
+        working-directory: docker
         run: |
-          kustomize edit set image ghcr.io/levino/pocketbase-auth-auth=ghcr.io/levino/pocketbase-auth-auth:${{ github.sha }}
-          kustomize edit set image ghcr.io/levino/pocketbase-auth-app=ghcr.io/levino/pocketbase-auth-app:${{ github.sha }}
-      - name: Publish the pinned overlay to the GitOps branch `production`
+          npm install --no-audit --no-fund
+          npm run build
+          npm prune --omit=dev
+      - name: Assemble production-dist (auth/ + app/)
         run: |
+          mkdir -p dist/auth dist/app
+          cp -r docker/dist docker/node_modules docker/package.json dist/auth/
+          cp example-app/server.mjs example-app/package.json dist/app/
+      - name: Publish it as the orphan branch `production-dist`
+        id: dist
+        working-directory: dist
+        run: |
+          echo "${{ github.sha }}" > .dist-commit
+          git init -q -b production-dist
           git config user.name  "deploy-bot"
           git config user.email "deploy-bot@users.noreply.github.com"
-          git add deploy/overlays/production/kustomization.yaml
-          git commit -m "chore(deploy): roll to ${{ github.sha }}"
+          git add -A -f
+          git commit -q -m "dist for ${{ github.sha }}"
+          git push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" HEAD:refs/heads/production-dist
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Pin the overlay to that dist commit and publish it to `production`
+        run: |
+          sed -i "s|levinkeller.de/dist-commit: \".*\"|levinkeller.de/dist-commit: \"${{ steps.dist.outputs.sha }}\"|g" deploy/overlays/production/workloads.yaml
+          grep -q "${{ steps.dist.outputs.sha }}" deploy/overlays/production/workloads.yaml
+          git config user.name  "deploy-bot"
+          git config user.email "deploy-bot@users.noreply.github.com"
+          git add deploy/overlays/production/workloads.yaml
+          git commit -q -m "chore(deploy): roll to dist ${{ steps.dist.outputs.sha }} (source ${{ github.sha }})"
           git push --force origin HEAD:refs/heads/production
