@@ -5,7 +5,7 @@ type AuthConfig = {
 }
 
 const authConfig: AuthConfig = {
-	pocketbaseUrl: "https://api.levinkeller.de",
+	pocketbaseUrl: "https://api.demo.levinkeller.de",
 	pocketbaseGroup: "example",
 	adminEmail: "post@levinkeller.de",
 }

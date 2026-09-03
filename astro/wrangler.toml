@@ -11,5 +11,5 @@ directory = "./dist"
 enabled = true
 
 [vars]
-POCKETBASE_URL = "https://api.levinkeller.de"
+POCKETBASE_URL = "https://api.demo.levinkeller.de"
 POCKETBASE_GROUP = "members"
