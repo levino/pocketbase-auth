@@ -9,13 +9,13 @@
 	},
 	"dependencies": {
 		"@astrojs/cloudflare": "^12.0.0",
-		"@tailwindcss/vite": "^4.1.0",
+		"@tailwindcss/vite": "^4.3.3",
 		"astro": "^5.0.0",
-		"daisyui": "^5.5.17",
-		"pocketbase": "^0.26.0",
+		"daisyui": "^5.7.28",
+		"pocketbase": "^0.28.1",
 		"tailwindcss": "^4.1.0"
 	},
 	"devDependencies": {
-		"wrangler": "^4.0.0"
+		"wrangler": "^4.129.0"
 	}
 }
