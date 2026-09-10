@@ -1,11 +1,22 @@
+# Achtung: `main` und `assets.directory` stehen hier bewusst NICHT mehr.
+#
+# Seit @astrojs/cloudflare 14 (automatisch gemergter Major am 2026-09-08, PR #74)
+# baut der Adapter ueber das Cloudflare-Vite-Plugin. Das liest diese Datei schon
+# BEIM Konfigurieren des Builds und prueft dabei, ob `main` auf eine existierende
+# Datei zeigt. Der alte Pfad `./dist/_worker.js/index.js` ist erstens das Layout
+# von Adapter-Version 12 und existiert zweitens vor dem Build gar nicht -- der
+# Build brach deshalb sofort ab ("The provided Wrangler config main field ...
+# doesn't point to an existing file").
+#
+# Adapter 14 schreibt stattdessen eine fertige `dist/server/wrangler.json` mit
+# `main` und dem richtigen Asset-Verzeichnis. Deployt wird mit genau dieser
+# Datei (siehe das `deploy`-Script in package.json).
 name = "pocketbase-auth-demo"
-main = "./dist/_worker.js/index.js"
 compatibility_date = "2026-02-05"
 compatibility_flags = ["nodejs_compat"]
 
 [assets]
 binding = "ASSETS"
-directory = "./dist"
 
 [observability]
 enabled = true

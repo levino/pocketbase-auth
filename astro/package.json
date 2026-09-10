@@ -5,7 +5,7 @@
 	"scripts": {
 		"dev": "astro dev --host",
 		"build": "astro build",
-		"deploy": "astro build && wrangler deploy"
+		"deploy": "astro build && wrangler deploy -c dist/server/wrangler.json"
 	},
 	"dependencies": {
 		"@astrojs/cloudflare": "^14.3.1",
