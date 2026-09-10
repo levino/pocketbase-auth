@@ -1,0 +1,35 @@
+# Repo: levino/pocketbase-auth (Branch main, Datei .github/workflows/build.yml)
+# Check-Name im Ruleset: build  (Workflow "Build", Job-Id "build")
+# Baut bei jedem Pull Request und bei jedem Push auf main alle npm-Workspaces.
+#
+# Warum es das gibt: der Deploy-Workflow baut erst NACH dem Merge -- und er baut
+# nur `docker/`. Der Automerge von Major-Updates hat genau so am 2026-09-08 den
+# Build des Workspaces `astro/` zerlegt (@astrojs/cloudflare 12 -> 14, PR #74),
+# ohne dass irgendein Check das gemeldet haette: kaputt auf main, tagelang
+# unbemerkt. Dieser Check baut BEIDE Workspaces im PR, bevor er gemergt wird.
+# Er sollte im Ruleset als Pflicht-Check fuer main eingetragen sein.
+name: Build
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          # Wie im Deploy-Workflow und in den Dockerfiles: Node 22.
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # `--workspaces` deckt `astro` und `docker` ab; `example-app` ist kein
+      # Workspace und hat kein Build-Script. `--if-present`, damit ein neuer
+      # Workspace ohne Build-Script den Check nicht rot faerbt.
+      - run: npm run build --workspaces --if-present
