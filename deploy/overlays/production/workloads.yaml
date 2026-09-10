@@ -21,7 +21,7 @@ spec:
       labels:
         app: auth
       annotations:
-        levinkeller.de/dist-commit: "0000000000000000000000000000000000000000"
+        levinkeller.de/dist-commit: "7de6660606663610c4628232ce9072db4949daac"
     spec:
       enableServiceLinks: false
       initContainers:
@@ -113,7 +113,7 @@ spec:
       labels:
         app: app
       annotations:
-        levinkeller.de/dist-commit: "0000000000000000000000000000000000000000"
+        levinkeller.de/dist-commit: "7de6660606663610c4628232ce9072db4949daac"
     spec:
       enableServiceLinks: false
       initContainers:
