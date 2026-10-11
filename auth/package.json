@@ -1,0 +1,18 @@
+{
+	"name": "pocketbase-auth-service",
+	"type": "module",
+	"scripts": {
+		"dev": "astro dev",
+		"build": "astro build",
+		"preview": "astro preview",
+		"start": "node ./dist/server/entry.mjs"
+	},
+	"dependencies": {
+		"@astrojs/node": "^11.1.6",
+		"@tailwindcss/vite": "^4.3.3",
+		"astro": "^7.3.5",
+		"daisyui": "^5.7.47",
+		"pocketbase": "^0.28.1",
+		"tailwindcss": "^4.1.0"
+	}
+}
