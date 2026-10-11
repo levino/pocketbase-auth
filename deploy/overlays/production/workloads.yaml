@@ -23,6 +23,8 @@ spec:
       annotations:
         levinkeller.de/dist-commit: "0000000000000000000000000000000000000000"
     spec:
+      # Eigener User-Namespace: root im Container ist auf dem Host kein root.
+      hostUsers: false
       enableServiceLinks: false
       initContainers:
       - name: fetch-dist
@@ -115,6 +117,8 @@ spec:
       annotations:
         levinkeller.de/dist-commit: "0000000000000000000000000000000000000000"
     spec:
+      # Eigener User-Namespace: root im Container ist auf dem Host kein root.
+      hostUsers: false
       enableServiceLinks: false
       initContainers:
       - name: fetch-dist
