@@ -8,10 +8,10 @@
 		"deploy": "astro build && wrangler deploy -c dist/server/wrangler.json"
 	},
 	"dependencies": {
-		"@astrojs/cloudflare": "^14.3.4",
+		"@astrojs/cloudflare": "^14.4.0",
 		"@tailwindcss/vite": "^4.3.3",
 		"astro": "^7.3.8",
-		"daisyui": "^5.7.47",
+		"daisyui": "^5.7.50",
 		"pocketbase": "^0.28.1",
 		"tailwindcss": "^4.1.0"
 	},
