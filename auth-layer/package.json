@@ -21,7 +21,6 @@
 		"infima": "^0.2.0-alpha.45"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.2.4",
 		"@changesets/cli": "^2.29.7",
 		"@types/cookie-parser": "^1.4.8",
 		"@types/supertest": "^6.0.3",
