@@ -2,6 +2,12 @@
 
 Protect any web application with PocketBase OAuth authentication. Copy the code, customize it, deploy it.
 
+> **`auth-layer/`** is the older Express auth layer (v1.0.11 and later) that is still
+> published as `ghcr.io/levino/levins-pocketbase-auth-layer:v1` and used in production
+> (buergerstiftung-docs, drk-roessing/docs, kultueroeffner-roessing/docs). It is rebuilt by
+> `.github/workflows/auth-layer-image.yml` on every change; Renovate keeps its Node base
+> image and npm dependencies current.
+
 ## How it works
 
 ```mermaid

@@ -1,0 +1,33 @@
+{
+	"name": "levins-pocketbase-auth-layer",
+	"version": "1.1.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"start": "node --experimental-strip-types app.ts",
+		"dev": "npm run copy-assets && vite",
+		"build": "npm run build-assets",
+		"copy-assets": "mkdir -p views/public/public && cp node_modules/infima/dist/css/default/default.css views/public/public/infima.css && cp node_modules/pocketbase/dist/pocketbase.umd.js views/public/public/pocketbase.umd.js",
+		"build-assets": "mkdir -p build/public && cp node_modules/infima/dist/css/default/default.css build/public/infima.css",
+		"test": "vitest"
+	},
+	"dependencies": {
+		"cookie-parser": "^1.4.7",
+		"dotenv": "^17.2.1",
+		"ejs": "^3.1.10",
+		"express": "^4.21.2",
+		"hbs": "^4.2.0",
+		"pocketbase": "^0.26",
+		"infima": "^0.2.0-alpha.45"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.2.4",
+		"@changesets/cli": "^2.29.7",
+		"@types/cookie-parser": "^1.4.8",
+		"@types/supertest": "^6.0.3",
+		"supertest": "^7.1.4",
+		"vite": "^7.1.6",
+		"vite-plugin-handlebars": "^2.0.0",
+		"vitest": "^3.2.4"
+	}
+}
