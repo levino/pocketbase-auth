@@ -1,0 +1,86 @@
+# Baut ghcr.io/levino/levins-pocketbase-auth-layer aus auth-layer/.
+#
+# Der Image-Name stammt aus der Zeit, als dieses Repo noch
+# levino/levins-pocketbase-auth-layer hieß; das Paket ist weiter mit dem Repo
+# verknüpft, deshalb reicht der GITHUB_TOKEN zum Pushen.
+#
+# Wer das Image nutzt (Stand 2026-10-22): buergerstiftung-docs auf dem k3s
+# (Overlay in buergerstiftung-roessing/intern, Tag `v1` per Digest gepinnt),
+# drk-roessing/docs und kultueroeffner-roessing/docs per FROM.
+#
+# Pull Request: Image bauen (amd64) und kurz anstarten -- das ist der Check,
+# auf den Renovate vor dem Automerge wartet. Push auf main: für amd64 und
+# arm64 (der k3s-Server ist arm64) bauen und als `v1`, `v1.1`, `latest` und
+# `sha-<commit>` pushen. Die Verbraucher pinnen den Digest und bekommen das
+# neue Image über ihr eigenes Renovate.
+name: Auth-Layer-Image
+on:
+  pull_request:
+    paths:
+      - auth-layer/**
+      - .github/workflows/auth-layer-image.yml
+  push:
+    branches: [main]
+    paths:
+      - auth-layer/**
+      - .github/workflows/auth-layer-image.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: auth-layer-image-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  IMAGE: ghcr.io/levino/levins-pocketbase-auth-layer
+jobs:
+  auth-layer-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Tests
+        working-directory: auth-layer
+        run: |
+          npm ci
+          npx vitest run
+      - name: Smoke-Test (Image bauen, starten, 401 ohne Cookie erwarten)
+        run: |
+          docker build -t auth-layer:test auth-layer
+          docker run -d --name auth-layer -p 3000:3000 -e POCKETBASE_URL=https://example.invalid auth-layer:test
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/ || true)
+            [ "$code" = 401 ] && break
+            sleep 1
+          done
+          docker exec auth-layer node -v
+          docker logs auth-layer
+          [ "$code" = 401 ] || { echo "erwartet 401, bekommen: $code"; exit 1; }
+      - if: github.event_name != 'pull_request'
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - if: github.event_name != 'pull_request'
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - if: github.event_name != 'pull_request'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - if: github.event_name != 'pull_request'
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: auth-layer
+          push: true
+          platforms: linux/amd64,linux/arm64
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          tags: |
+            ${{ env.IMAGE }}:v1
+            ${{ env.IMAGE }}:v1.1
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:sha-${{ github.sha }}
+      - if: github.event_name != 'pull_request'
+        run: echo "Gepusht ${IMAGE}@${{ steps.push.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,56 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="/public/infima.css" />
+    <title>Keine Berechtigung</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body>
+    <div class="container padding-top--lg">
+      <div class="alert alert--warning">
+        <h3>Du bist eingeloggt, aber noch kein Mitglied</h3>
+        <p>Du bist mit der E-Mail-Adresse <strong>{{userEmail}}</strong> angemeldet.</p>
+        <p>Bitte kontaktiere Levin, damit er deinen Account freischaltet.</p>
+
+        <div class="padding-top--md">
+          <button type="button" class="button button--primary" id="sendEmailButton">
+            E-Mail an Levin senden
+          </button>
+        </div>
+
+        <div class="padding-top--lg">
+          <p>Mit dem falschen Account eingeloggt?</p>
+          <form method="post" action="/api/logout">
+            <button type="submit" class="button button--secondary">
+              Ausloggen
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </body>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('sendEmailButton').addEventListener('click', () => {
+        const userEmail = "{{userEmail}}";
+        const groupName = "{{groupName}}";
+        const pocketbaseUrl = "{{pocketbaseUrl}}";
+        const subject = `Aufnahme in die Gruppe "${groupName}"`;
+        const body = `Hallo Levin,
+
+hier ist [BITTE NAMEN EINTRAGEN], ich habe mich gerade mit der E-Mail ${userEmail} registriert und möchte gerne in die Gruppe "${groupName}" aufgenommen werden.
+
+PocketBase URL: ${pocketbaseUrl}
+
+Vielen Dank!
+
+[DEIN NAME]`;
+
+        const mailtoLink = `mailto:post@levinkeller.de?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        window.open(mailtoLink, '_blank');
+      });
+    });
+  </script>
+
+</html>
