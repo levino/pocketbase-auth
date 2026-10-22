@@ -6,6 +6,6 @@
 		"docker"
 	],
 	"devDependencies": {
-		"@biomejs/biome": "^2.5.15"
+		"@biomejs/biome": "2.6.2"
 	}
 }
