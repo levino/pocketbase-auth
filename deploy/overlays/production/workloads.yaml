@@ -21,7 +21,7 @@ spec:
       labels:
         app: auth
       annotations:
-        levinkeller.de/dist-commit: "0000000000000000000000000000000000000000"
+        levinkeller.de/dist-commit: "0bb1e75d8ad9fd170793dfefa18a2ab0d5b0c6b9"
     spec:
       # Eigener User-Namespace: root im Container ist auf dem Host kein root.
       hostUsers: false
@@ -115,7 +115,7 @@ spec:
       labels:
         app: app
       annotations:
-        levinkeller.de/dist-commit: "0000000000000000000000000000000000000000"
+        levinkeller.de/dist-commit: "0bb1e75d8ad9fd170793dfefa18a2ab0d5b0c6b9"
     spec:
       # Eigener User-Namespace: root im Container ist auf dem Host kein root.
       hostUsers: false
